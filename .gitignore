@@ -40,3 +40,7 @@ build/
 
 ### Claude Code ###
 .claude/settings.local.json
+
+# Data directory (keep structure, ignore content)
+data/**/*
+!data/**/.gitkeep
