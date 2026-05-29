@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>site.kael.clash</groupId>
+        <artifactId>clash-subscriber</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>module-scheduler</artifactId>
+    <packaging>jar</packaging>
+
+    <name>module-scheduler</name>
+    <description>定时任务：订阅拉取与配置刷新调度</description>
+
+    <dependencies>
+        <!-- 内部模块：订阅管理 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-subscription</artifactId>
+        </dependency>
+
+        <!-- 内部模块：配置处理 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-processor</artifactId>
+        </dependency>
+
+        <!-- 内部模块：Mihomo 管理 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-mihomo</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter（核心，无 Web） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 测试 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
