@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>site.kael.clash</groupId>
+        <artifactId>clash-subscriber</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>module-processor</artifactId>
+    <packaging>jar</packaging>
+
+    <name>module-processor</name>
+    <description>配置前置处理：节点合并、规则修改等 Pipeline</description>
+
+    <dependencies>
+        <!-- 内部模块：公共工具 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-common</artifactId>
+        </dependency>
+
+        <!-- 内部模块：订阅管理 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-subscription</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter（核心，无 Web） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- GraalVM Polyglot（JavaScript 脚本处理） -->
+        <dependency>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>polyglot</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 测试 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
