@@ -31,42 +31,42 @@
 - [x] 4.2 定义 MihomoInstanceRepository 接口
 - [x] 4.3 实现 JsonFileMihomoInstanceRepository
 - [x] 4.4 创建 MihomoHttpClient（HTTP API 客户端）
-- [ ] 4.5 定义 MihomoService 接口
-- [ ] 4.6 实现 MihomoService（CRUD + 健康检查 + 配置推送）
+- [x] 4.5 定义 MihomoService 接口
+- [x] 4.6 实现 MihomoService（CRUD + 健康检查 + 配置推送）
 
 ## 5. module-processor 配置处理
 
 - [x] 5.1 定义 ConfigProcessor 接口
 - [x] 5.2 创建 ProcessingContext 模型
-- [ ] 5.3 实现 NodeMergeProcessor（节点合并）
-- [ ] 5.4 实现 RuleModifyProcessor（规则修改）
-- [ ] 5.5 实现 ProxyGroupProcessor（代理组重组）
-- [ ] 5.6 实现 DuplicateRemoveProcessor（去重）
-- [ ] 5.7 实现 ScriptProcessor（GraalVM JS 脚本引擎）
+- [x] 5.3 实现 NodeMergeProcessor（节点合并）
+- [x] 5.4 实现 RuleModifyProcessor（规则修改）
+- [x] 5.5 实现 ProxyGroupProcessor（代理组重组）
+- [x] 5.6 实现 DuplicateRemoveProcessor（去重）
+- [x] 5.7 实现 ScriptProcessor（GraalVM JS 脚本引擎）
 - [x] 5.8 定义 Pipeline 配置模型
-- [ ] 5.9 实现 Pipeline 执行引擎
+- [x] 5.9 实现 Pipeline 执行引擎
 
 ## 6. module-scheduler 定时任务
 
 - [x] 6.1 创建 ScheduledTask 模型类
-- [ ] 6.2 定义 SchedulerService 接口
-- [ ] 6.3 实现 SchedulerService（任务管理 + cron 调度）
-- [ ] 6.4 实现任务执行逻辑（获取订阅 → Pipeline → 推送）
+- [x] 6.2 定义 SchedulerService 接口
+- [x] 6.3 实现 SchedulerService（任务管理 + cron 调度）
+- [x] 6.4 实现任务执行逻辑（获取订阅 → Pipeline → 推送）
 
 ## 7. module-web REST API
 
-- [ ] 7.1 创建 SubscriptionController
-- [ ] 7.2 创建 PipelineController
-- [ ] 7.3 创建 MihomoInstanceController
-- [ ] 7.4 创建 ScheduledTaskController
-- [ ] 7.5 创建 ScriptController
-- [ ] 7.6 配置 CORS 和全局异常处理
+- [x] 7.1 创建 SubscriptionController
+- [x] 7.2 创建 PipelineController
+- [x] 7.3 创建 MihomoInstanceController
+- [x] 7.4 创建 ScheduledTaskController
+- [x] 7.5 创建 ScriptController
+- [x] 7.6 配置 CORS 和全局异常处理
 
 ## 8. module-web Vue 3 前端
 
-- [ ] 8.1 初始化 Vue 3 项目（Vite + TypeScript）
-- [ ] 8.2 实现订阅源管理页面
-- [ ] 8.3 实现 Mihomo 实例管理页面
-- [ ] 8.4 实现定时任务管理页面
-- [ ] 8.5 实现脚本管理页面
-- [ ] 8.6 配置构建集成（前端构建产物输出到 static/）
+- [x] 8.1 初始化 Vue 3 项目（Vite + TypeScript）
+- [x] 8.2 实现订阅源管理页面
+- [x] 8.3 实现 Mihomo 实例管理页面
+- [x] 8.4 实现定时任务管理页面
+- [x] 8.5 实现脚本管理页面
+- [x] 8.6 配置构建集成（前端构建产物输出到 static/）
