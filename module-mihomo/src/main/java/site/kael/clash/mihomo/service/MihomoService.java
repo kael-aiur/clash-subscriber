@@ -56,9 +56,25 @@ public interface MihomoService {
      * 获取指定实例的当前运行配置
      *
      * @param instanceId 实例 ID
-     * @return YAML 格式的配置字符串
+     * @return JSON 格式的配置字符串
      */
     String getConfig(String instanceId);
+
+    /**
+     * 获取指定实例的规则列表
+     *
+     * @param instanceId 实例 ID
+     * @return JSON 格式的规则数据
+     */
+    String getRules(String instanceId);
+
+    /**
+     * 获取指定实例的代理和代理组
+     *
+     * @param instanceId 实例 ID
+     * @return JSON 格式的代理数据
+     */
+    String getProxies(String instanceId);
 
     /**
      * 向单个实例推送配置

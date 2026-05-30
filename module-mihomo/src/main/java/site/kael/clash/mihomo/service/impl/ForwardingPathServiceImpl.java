@@ -1,5 +1,9 @@
 package site.kael.clash.mihomo.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import site.kael.clash.mihomo.model.ForwardingPathResult;
 import site.kael.clash.mihomo.service.ForwardingPathService;
@@ -9,107 +13,95 @@ import java.util.*;
 @Service
 public class ForwardingPathServiceImpl implements ForwardingPathService {
 
+    private static final Logger log = LoggerFactory.getLogger(ForwardingPathServiceImpl.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     @SuppressWarnings("unchecked")
-    public ForwardingPathResult resolveForwardingPath(String configYaml, String domain) {
-        Map<String, Object> config = parseConfig(configYaml);
+    public ForwardingPathResult resolveForwardingPath(String rulesJson, String proxiesJson, String domain) {
+        try {
+            // 解析 rules API 响应: {"rules": [{"type":"DomainSuffix","payload":"...","proxy":"..."}, ...]}
+            Map<String, Object> rulesResponse = objectMapper.readValue(rulesJson, new TypeReference<>() {});
+            List<Map<String, Object>> rulesList = (List<Map<String, Object>>) rulesResponse.getOrDefault("rules", List.of());
+            log.debug("解析到 {} 条规则", rulesList.size());
 
-        // 提取规则列表
-        List<String> rules = (List<String>) config.getOrDefault("rules", List.of());
+            // 解析 proxies API 响应: {"proxies": {"GroupName": {"type":"Selector","all":["node1","node2"]}, ...}}
+            Map<String, Object> proxiesResponse = objectMapper.readValue(proxiesJson, new TypeReference<>() {});
+            Map<String, Map<String, Object>> proxiesMap = (Map<String, Map<String, Object>>) proxiesResponse.getOrDefault("proxies", Map.of());
+            log.debug("解析到 {} 个代理/代理组", proxiesMap.size());
 
-        // 提取代理组（YAML 中 proxy-groups 是数组格式）
-        List<Map<String, Object>> proxyGroupList =
-                (List<Map<String, Object>>) config.getOrDefault("proxy-groups", List.of());
-        Map<String, Map<String, Object>> proxyGroups = new LinkedHashMap<>();
-        for (Map<String, Object> group : proxyGroupList) {
-            String name = (String) group.get("name");
-            proxyGroups.put(name, group);
-        }
+            // 匹配域名对应的规则
+            Map<String, Object> matchedRule = matchRule(rulesList, domain);
+            log.debug("域名 '{}' 匹配规则: {}", domain, matchedRule);
+            if (matchedRule == null) {
+                return new ForwardingPathResult(List.of(), List.of());
+            }
 
-        // 匹配域名对应的规则
-        String matchedRule = matchRule(rules, domain);
-        if (matchedRule == null) {
+            String targetGroupName = (String) matchedRule.get("proxy");
+            String ruleLabel = matchedRule.get("type") + "," + matchedRule.get("payload") + "," + targetGroupName;
+            log.debug("目标代理组: {}", targetGroupName);
+
+            // 构建流程图数据
+            List<ForwardingPathResult.Node> nodes = new ArrayList<>();
+            List<ForwardingPathResult.Edge> edges = new ArrayList<>();
+            int[] edgeCounter = {0};
+
+            // 1. 域名节点
+            nodes.add(new ForwardingPathResult.Node("domain", "domain", Map.of("label", domain)));
+
+            // 2. 规则节点
+            String ruleNodeId = "rule-0";
+            nodes.add(new ForwardingPathResult.Node(ruleNodeId, "rule", Map.of("label", ruleLabel)));
+            edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, "domain", ruleNodeId));
+
+            // 3. 目标代理组节点
+            buildGroupNodes(targetGroupName, proxiesMap, ruleNodeId, nodes, edges, edgeCounter);
+
+            log.debug("构建流程图完成: {} 个节点, {} 条边", nodes.size(), edges.size());
+            return new ForwardingPathResult(nodes, edges);
+        } catch (Exception e) {
+            log.error("解析转发路径失败: {}", e.getMessage(), e);
             return new ForwardingPathResult(List.of(), List.of());
         }
-
-        String targetGroupName = extractTargetGroup(matchedRule);
-        if (targetGroupName == null) {
-            return new ForwardingPathResult(List.of(), List.of());
-        }
-
-        // 构建流程图数据
-        List<ForwardingPathResult.Node> nodes = new ArrayList<>();
-        List<ForwardingPathResult.Edge> edges = new ArrayList<>();
-        int[] edgeCounter = {0};
-
-        // 1. 域名节点
-        nodes.add(new ForwardingPathResult.Node("domain", "domain", Map.of("label", domain)));
-
-        // 2. 规则节点
-        String ruleNodeId = "rule-0";
-        nodes.add(new ForwardingPathResult.Node(ruleNodeId, "rule", Map.of("label", matchedRule)));
-        edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, "domain", ruleNodeId));
-
-        // 3. 目标代理组节点
-        buildGroupNodes(targetGroupName, proxyGroups, ruleNodeId, nodes, edges, edgeCounter);
-
-        return new ForwardingPathResult(nodes, edges);
-    }
-
-    /**
-     * 解析 YAML 配置，提取 rules、proxy-groups、proxies
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> parseConfig(String configYaml) {
-        org.yaml.snakeyaml.Yaml yaml = new org.yaml.snakeyaml.Yaml();
-        return yaml.load(configYaml);
     }
 
     /**
      * 匹配域名对应的规则
-     * 按优先级从上到下遍历，返回第一个匹配的规则
+     * Mihomo 规则格式: {"type": "DomainSuffix", "payload": "google.com", "proxy": "Proxy"}
      */
-    private String matchRule(List<String> rules, String domain) {
-        for (String rule : rules) {
-            String[] parts = rule.split(",");
-            if (parts.length < 2) continue;
+    private Map<String, Object> matchRule(List<Map<String, Object>> rules, String domain) {
+        for (Map<String, Object> rule : rules) {
+            String type = (String) rule.get("type");
+            String payload = (String) rule.get("payload");
 
-            String ruleType = parts[0];
-            String ruleValue = parts[1];
+            if (type == null) continue;
 
-            switch (ruleType) {
-                case "DOMAIN":
-                    if (domain.equals(ruleValue)) return rule;
+            switch (type) {
+                case "Domain":
+                    if (domain.equals(payload)) return rule;
                     break;
-                case "DOMAIN-SUFFIX":
-                    if (domain.endsWith(ruleValue) || domain.equals(ruleValue)) return rule;
+                case "DomainSuffix":
+                    if (domain.endsWith(payload) || domain.equals(payload)) return rule;
                     break;
-                case "DOMAIN-KEYWORD":
-                    if (domain.contains(ruleValue)) return rule;
+                case "DomainKeyword":
+                    if (domain.contains(payload)) return rule;
                     break;
-                case "MATCH":
+                case "Match":
                     return rule;  // 兜底规则，直接匹配
-                // IP-CIDR, GEOIP 等不支持域名匹配，跳过
+                // IP-CIDR, GeoIP 等不支持域名匹配，跳过
             }
         }
         return null;
     }
 
     /**
-     * 从规则字符串中提取目标代理组名称
-     */
-    private String extractTargetGroup(String rule) {
-        String[] parts = rule.split(",");
-        return parts.length >= 3 ? parts[parts.length - 1] : null;
-    }
-
-    /**
      * 递归构建代理组及其子节点
+     * Mihomo 代理组格式: {"type": "Selector", "all": ["node1", "node2", ...]}
      */
     @SuppressWarnings("unchecked")
     private void buildGroupNodes(
             String groupName,
-            Map<String, Map<String, Object>> proxyGroups,
+            Map<String, Map<String, Object>> proxiesMap,
             String parentNodeId,
             List<ForwardingPathResult.Node> nodes,
             List<ForwardingPathResult.Edge> edges,
@@ -123,16 +115,16 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
             return;
         }
 
-        Map<String, Object> group = proxyGroups.get(groupName);
-        if (group == null) {
-            // 代理组不存在，可能是代理节点名称
+        Map<String, Object> proxyInfo = proxiesMap.get(groupName);
+        if (proxyInfo == null) {
+            // 代理不存在，可能是自定义节点名称
             String proxyId = "proxy-" + groupName.replaceAll("[^a-zA-Z0-9-]", "_");
             nodes.add(new ForwardingPathResult.Node(proxyId, "proxy", Map.of("label", groupName)));
             edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, parentNodeId, proxyId));
             return;
         }
 
-        String groupType = (String) group.getOrDefault("type", "select");
+        String type = (String) proxyInfo.getOrDefault("type", "Unknown");
         String groupId = "group-" + groupName.replaceAll("[^a-zA-Z0-9-]", "_");
 
         // 检查是否已添加过该代理组（避免循环引用）
@@ -143,15 +135,15 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
         }
 
         nodes.add(new ForwardingPathResult.Node(groupId, "proxyGroup",
-                Map.of("label", groupName, "groupType", groupType)));
+                Map.of("label", groupName, "groupType", type)));
         edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, parentNodeId, groupId));
 
-        // 处理代理组内的代理列表
-        List<String> proxies = (List<String>) group.getOrDefault("proxies", List.of());
-        for (String proxyName : proxies) {
+        // 处理代理组内的代理列表（"all" 字段包含所有可选代理）
+        List<String> allProxies = (List<String>) proxyInfo.getOrDefault("all", List.of());
+        for (String proxyName : allProxies) {
             // 判断是子代理组还是代理节点
-            if (proxyGroups.containsKey(proxyName)) {
-                buildGroupNodes(proxyName, proxyGroups, groupId, nodes, edges, edgeCounter);
+            if (proxiesMap.containsKey(proxyName)) {
+                buildGroupNodes(proxyName, proxiesMap, groupId, nodes, edges, edgeCounter);
             } else {
                 // 代理节点
                 String proxyId = "proxy-" + proxyName.replaceAll("[^a-zA-Z0-9-]", "_");

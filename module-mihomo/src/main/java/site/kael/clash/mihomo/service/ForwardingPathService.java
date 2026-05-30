@@ -12,9 +12,10 @@ public interface ForwardingPathService {
     /**
      * 查询指定域名的转发路径
      *
-     * @param configYaml Mihomo YAML 配置
-     * @param domain     用户输入的域名
+     * @param rulesJson   Mihomo rules API 返回的 JSON 数据
+     * @param proxiesJson Mihomo proxies API 返回的 JSON 数据
+     * @param domain      用户输入的域名
      * @return Vue Flow 格式的流程图数据
      */
-    ForwardingPathResult resolveForwardingPath(String configYaml, String domain);
+    ForwardingPathResult resolveForwardingPath(String rulesJson, String proxiesJson, String domain);
 }

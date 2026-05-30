@@ -44,11 +44,37 @@ public class MihomoHttpClient {
      *
      * @param apiUrl    Mihomo API 地址
      * @param apiSecret API 密钥（可为 null）
-     * @return YAML 格式的配置字符串
+     * @return JSON 格式的配置字符串
      */
     public String getConfig(String apiUrl, String apiSecret) {
+        return doGet(apiUrl + "/configs", apiSecret);
+    }
+
+    /**
+     * 从 Mihomo 实例获取规则列表
+     *
+     * @param apiUrl    Mihomo API 地址
+     * @param apiSecret API 密钥（可为 null）
+     * @return JSON 格式的规则数据
+     */
+    public String getRules(String apiUrl, String apiSecret) {
+        return doGet(apiUrl + "/rules", apiSecret);
+    }
+
+    /**
+     * 从 Mihomo 实例获取代理和代理组
+     *
+     * @param apiUrl    Mihomo API 地址
+     * @param apiSecret API 密钥（可为 null）
+     * @return JSON 格式的代理数据
+     */
+    public String getProxies(String apiUrl, String apiSecret) {
+        return doGet(apiUrl + "/proxies", apiSecret);
+    }
+
+    private String doGet(String url, String apiSecret) {
         Request.Builder builder = new Request.Builder()
-                .url(apiUrl + "/configs")
+                .url(url)
                 .get();
 
         if (apiSecret != null && !apiSecret.isEmpty()) {
@@ -58,11 +84,11 @@ public class MihomoHttpClient {
         try (Response response = client.newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) {
                 String body = response.body() != null ? response.body().string() : "";
-                throw new BusinessException("获取配置失败: HTTP " + response.code() + " - " + body);
+                throw new BusinessException("请求失败: HTTP " + response.code() + " - " + body);
             }
             return response.body() != null ? response.body().string() : "";
         } catch (IOException e) {
-            throw new BusinessException("获取配置失败: " + e.getMessage());
+            throw new BusinessException("请求失败: " + e.getMessage());
         }
     }
 
