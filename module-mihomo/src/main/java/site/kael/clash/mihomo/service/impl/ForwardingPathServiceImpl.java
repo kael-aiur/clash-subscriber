@@ -84,7 +84,9 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
                     if (domain.equals(payload)) return rule;
                     break;
                 case "DomainSuffix":
-                    if (domain.endsWith(payload) || domain.equals(payload)) return rule;
+                    // Mihomo 的 DomainSuffix 按域名层级匹配：
+                    // "le.com" 匹配 "le.com" 和 "api.le.com"，不匹配 "google.com"
+                    if (domain.equals(payload) || domain.endsWith("." + payload)) return rule;
                     break;
                 case "DomainKeyword":
                     if (domain.contains(payload)) return rule;
