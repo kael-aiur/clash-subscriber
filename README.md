@@ -31,7 +31,7 @@ docker run -d \
   -v ./data:/app/data \
   -e TZ=Asia/Shanghai \
   --restart unless-stopped \
-  kaelaiur/clash-subscriber:latest
+  kael2018/clash-subscriber:latest
 ```
 
 **方式二：使用 docker-compose**
