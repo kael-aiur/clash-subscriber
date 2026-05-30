@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { mihomoApi } from '../api/mihomo'
+import { buildPipelineApi } from '../api/build-pipeline'
+import type { BuildRecord } from '../api/build-pipeline'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import ForwardingRuleTab from '../components/ForwardingRuleTab.vue'
 
@@ -13,6 +15,35 @@ const activeTab = ref('info')
 const instance = ref<any>(null)
 const loading = ref(false)
 
+const historyRecords = ref<BuildRecord[]>([])
+const historyLoading = ref(false)
+
+async function loadHistory() {
+  historyLoading.value = true
+  try {
+    // 获取所有构建流程，筛选出目标为当前实例的
+    const { data: pipelines } = await buildPipelineApi.list()
+    const targetPipelines = pipelines.filter(p => p.targetInstanceId === instanceId)
+    // 获取每个流程的构建记录
+    const allRecords: BuildRecord[] = []
+    for (const pipeline of targetPipelines) {
+      try {
+        const { data: records } = await buildPipelineApi.getRecords(pipeline.id)
+        allRecords.push(...records)
+      } catch (e) {
+        console.error(`获取流程 ${pipeline.id} 的记录失败:`, e)
+      }
+    }
+    // 按开始时间倒序排列
+    allRecords.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    historyRecords.value = allRecords
+  } catch (error) {
+    console.error('获取推送历史失败:', error)
+  } finally {
+    historyLoading.value = false
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -23,6 +54,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+  loadHistory()
 })
 </script>
 
@@ -63,7 +95,18 @@ onMounted(async () => {
         <ForwardingRuleTab v-if="instance" :instance-id="instanceId" />
       </el-tab-pane>
       <el-tab-pane label="推送历史" name="history">
-        <!-- 推送历史内容 -->
+        <el-table :data="historyRecords" v-loading="historyLoading" stripe>
+          <el-table-column prop="startedAt" label="推送时间" width="180" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'SUCCESS' ? 'success' : 'danger'">
+                {{ row.status === 'SUCCESS' ? '成功' : '失败' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="errorMessage" label="错误信息" />
+        </el-table>
+        <el-empty v-if="historyRecords.length === 0 && !historyLoading" description="暂无推送记录" />
       </el-tab-pane>
     </el-tabs>
   </div>
