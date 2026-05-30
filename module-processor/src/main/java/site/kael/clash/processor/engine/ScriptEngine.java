@@ -88,8 +88,13 @@ public class ScriptEngine {
                     .map(this::proxyNodeToMap)
                     .toList());
 
-            // proxy-groups: Map → Array（添加 name 字段）
-            scriptConfig.put("proxy-groups", mapToGroupArray(config.getProxyGroups()));
+            // proxy-groups: 转为 Array 格式（脚本和 Verge 协议要求 Array）
+            // 优先使用 typed 字段（处理器可能已修改），否则从 raw 中转换
+            if (config.getProxyGroups() != null && !config.getProxyGroups().isEmpty()) {
+                scriptConfig.put("proxy-groups", mapToGroupArray(config.getProxyGroups()));
+            } else if (scriptConfig.get("proxy-groups") instanceof Map<?, ?> rawGroups) {
+                scriptConfig.put("proxy-groups", mapToGroupArray((Map<String, Object>) rawGroups));
+            }
 
             // rules
             if (config.getRules() != null && !config.getRules().isEmpty()) {
