@@ -184,7 +184,7 @@ onMounted(loadInstances)
       </el-table-column>
       <el-table-column label="API 地址" min-width="250">
         <template #default="{ row }">
-          <MaskableText :text="row.apiUrl" />
+          <MaskableText :text="row.apiUrl" :fully-masked="true" />
         </template>
       </el-table-column>
       <el-table-column label="状态" width="100">

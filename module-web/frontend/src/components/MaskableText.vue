@@ -5,8 +5,10 @@ import { View, Hide } from '@element-plus/icons-vue'
 const props = withDefaults(defineProps<{
   text: string
   masked?: boolean
+  fullyMasked?: boolean
 }>(), {
-  masked: true
+  masked: true,
+  fullyMasked: false
 })
 
 const isMasked = ref(props.masked)
@@ -14,6 +16,12 @@ const isMasked = ref(props.masked)
 const displayText = computed(() => {
   if (!isMasked.value) return props.text
 
+  // 完全隐藏模式
+  if (props.fullyMasked) {
+    return '••••••••'
+  }
+
+  // 部分隐藏模式（显示域名）
   try {
     const url = new URL(props.text)
     // 显示协议、主机名和端口，隐藏路径和参数
