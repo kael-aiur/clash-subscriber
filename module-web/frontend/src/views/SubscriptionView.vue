@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription, ClashConfig } from '@/api/subscription'
+import MaskableText from '@/components/MaskableText.vue'
 
 const subscriptions = ref<Subscription[]>([])
 const loading = ref(false)
@@ -131,7 +132,11 @@ onMounted(loadSubscriptions)
 
     <el-table :data="subscriptions" v-loading="loading" border stripe>
       <el-table-column prop="name" label="名称" min-width="150" />
-      <el-table-column prop="url" label="URL" min-width="300" show-overflow-tooltip />
+      <el-table-column label="URL" min-width="300">
+        <template #default="{ row }">
+          <MaskableText :text="row.url" />
+        </template>
+      </el-table-column>
       <el-table-column label="最后获取时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.lastFetchedAt) }}
