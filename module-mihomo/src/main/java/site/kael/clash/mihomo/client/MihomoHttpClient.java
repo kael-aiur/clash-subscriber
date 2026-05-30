@@ -39,6 +39,33 @@ public class MihomoHttpClient {
         }
     }
 
+    /**
+     * 从 Mihomo 实例获取当前运行配置
+     *
+     * @param apiUrl    Mihomo API 地址
+     * @param apiSecret API 密钥（可为 null）
+     * @return YAML 格式的配置字符串
+     */
+    public String getConfig(String apiUrl, String apiSecret) {
+        Request.Builder builder = new Request.Builder()
+                .url(apiUrl + "/configs")
+                .get();
+
+        if (apiSecret != null && !apiSecret.isEmpty()) {
+            builder.addHeader("Authorization", "Bearer " + apiSecret);
+        }
+
+        try (Response response = client.newCall(builder.build()).execute()) {
+            if (!response.isSuccessful()) {
+                String body = response.body() != null ? response.body().string() : "";
+                throw new BusinessException("获取配置失败: HTTP " + response.code() + " - " + body);
+            }
+            return response.body() != null ? response.body().string() : "";
+        } catch (IOException e) {
+            throw new BusinessException("获取配置失败: " + e.getMessage());
+        }
+    }
+
     private static String toJsonString(String value) {
         return "\"" + value
                 .replace("\\", "\\\\")
