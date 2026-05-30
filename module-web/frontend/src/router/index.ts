@@ -27,6 +27,11 @@ const router = createRouter({
       name: 'scripts',
       component: () => import('@/views/ScriptView.vue'),
     },
+    {
+      path: '/build-pipelines',
+      name: 'build-pipelines',
+      component: () => import('@/views/BuildPipelineView.vue'),
+    },
   ],
 })
 

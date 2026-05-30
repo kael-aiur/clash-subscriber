@@ -8,7 +8,7 @@ const route = useRoute()
 const menuItems = [
   { path: '/subscriptions', label: '订阅源管理', icon: 'Link' },
   { path: '/mihomo-instances', label: 'Mihomo 实例', icon: 'Monitor' },
-  { path: '/scheduled-tasks', label: '定时任务', icon: 'Timer' },
+  { path: '/build-pipelines', label: '构建流程', icon: 'SetUp' },
   { path: '/scripts', label: '脚本管理', icon: 'Document' },
 ]
 
