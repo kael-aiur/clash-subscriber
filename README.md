@@ -16,10 +16,6 @@ Clash/Mihomo 订阅管理中心 — 集中管理多个订阅源，自动同步�
 
 > 截图待补充
 
-| 订阅管理 | 实例管理 | 转发路径 |
-|---------|---------|---------|
-| ![订阅管理](docs/images/subscription.png) | ![实例管理](docs/images/instance.png) | ![转发路径](docs/images/forwarding-path.png) |
-
 ## 快速开始
 
 ### Docker 部署（推荐）
@@ -27,7 +23,7 @@ Clash/Mihomo 订阅管理中心 — 集中管理多个订阅源，自动同步�
 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/clash-subscriber.git
+git clone https://github.com/kael-aiur/clash-subscriber.git
 cd clash-subscriber
 ```
 
@@ -47,7 +43,7 @@ docker-compose up -d
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-username/clash-subscriber.git
+git clone https://github.com/kael-aiur/clash-subscriber.git
 cd clash-subscriber
 
 # 编译打包
@@ -73,7 +69,7 @@ server:
 或通过环境变量：
 
 ```bash
-docker-compose run -e SERVER_PORT=9090 clash-subscriber
+SERVER_PORT=9090 docker-compose up -d
 ```
 
 ### 数据目录
