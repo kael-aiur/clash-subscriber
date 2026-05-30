@@ -38,7 +38,10 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
             }
 
             String targetGroupName = (String) matchedRule.get("proxy");
-            String ruleLabel = matchedRule.get("type") + "," + matchedRule.get("payload") + "," + targetGroupName;
+            String ruleType = (String) matchedRule.get("type");
+            String rulePayload = (String) matchedRule.get("payload");
+            String ruleLabel = (rulePayload != null ? ruleType + " " + rulePayload : ruleType)
+                    + " → " + targetGroupName;
             log.debug("目标代理组: {}", targetGroupName);
 
             // 构建流程图数据
@@ -95,8 +98,8 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
     }
 
     /**
-     * 递归构建代理组及其子节点
-     * Mihomo 代理组格式: {"type": "Selector", "all": ["node1", "node2", ...]}
+     * 递归构建代理组及其子节点，展示当前选中的代理路径
+     * Mihomo 代理组格式: {"type": "Selector", "now": "当前选中代理", "all": ["node1", "node2", ...]}
      */
     @SuppressWarnings("unchecked")
     private void buildGroupNodes(
@@ -138,18 +141,21 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
                 Map.of("label", groupName, "groupType", type)));
         edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, parentNodeId, groupId));
 
-        // 处理代理组内的代理列表（"all" 字段包含所有可选代理）
-        List<String> allProxies = (List<String>) proxyInfo.getOrDefault("all", List.of());
-        for (String proxyName : allProxies) {
-            // 判断是子代理组还是代理节点
-            if (proxiesMap.containsKey(proxyName)) {
-                buildGroupNodes(proxyName, proxiesMap, groupId, nodes, edges, edgeCounter);
+        // 仅展开当前选中的代理（now 字段），而非全部代理列表
+        String now = (String) proxyInfo.get("now");
+        if (now != null) {
+            if (proxiesMap.containsKey(now)) {
+                // 选中的代理本身也是代理组，递归展开
+                buildGroupNodes(now, proxiesMap, groupId, nodes, edges, edgeCounter);
             } else {
-                // 代理节点
-                String proxyId = "proxy-" + proxyName.replaceAll("[^a-zA-Z0-9-]", "_");
-                nodes.add(new ForwardingPathResult.Node(proxyId, "proxy", Map.of("label", proxyName)));
+                // 选中的是普通代理节点
+                String proxyId = "proxy-" + now.replaceAll("[^a-zA-Z0-9-]", "_");
+                nodes.add(new ForwardingPathResult.Node(proxyId, "proxy", Map.of("label", now)));
                 edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, groupId, proxyId));
             }
+        } else {
+            // 无 now 字段（如 Direct/Reject/Compatible/Pass 类型），不展开子节点
+            log.debug("代理组 '{}' (type={}) 无 now 字段，跳过子节点展开", groupName, type);
         }
     }
 }
