@@ -18,6 +18,12 @@ const router = createRouter({
       component: () => import('@/views/MihomoInstanceView.vue'),
     },
     {
+      path: '/mihomo-instances/:id',
+      name: 'MihomoInstanceDetail',
+      component: () => import('@/views/MihomoInstanceDetailView.vue'),
+      meta: { title: 'Mihomo 实例详情' },
+    },
+    {
       path: '/scheduled-tasks',
       name: 'scheduled-tasks',
       component: () => import('@/views/ScheduledTaskView.vue'),
