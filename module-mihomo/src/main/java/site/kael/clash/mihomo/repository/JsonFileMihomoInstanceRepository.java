@@ -1,6 +1,7 @@
 package site.kael.clash.mihomo.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 import site.kael.clash.mihomo.model.MihomoInstance;
@@ -19,6 +20,7 @@ public class JsonFileMihomoInstanceRepository implements MihomoInstanceRepositor
 
     public JsonFileMihomoInstanceRepository(@Value("${data.path:data}") String dataPath) {
         this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
         this.dataPath = dataPath;
         new File(dataPath + "/mihomo-instances").mkdirs();
     }

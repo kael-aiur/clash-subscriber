@@ -29,6 +29,12 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- Jackson Java 8 时间类型支持 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- OkHttp HTTP 客户端 -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
