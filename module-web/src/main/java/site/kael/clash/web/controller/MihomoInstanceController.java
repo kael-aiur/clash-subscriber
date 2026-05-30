@@ -6,8 +6,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import site.kael.clash.common.exception.BusinessException;
 import site.kael.clash.common.model.ClashConfig;
+import site.kael.clash.mihomo.model.ForwardingPathResult;
 import site.kael.clash.mihomo.model.HealthStatus;
 import site.kael.clash.mihomo.model.MihomoInstance;
+import site.kael.clash.mihomo.service.ForwardingPathService;
 import site.kael.clash.mihomo.service.MihomoService;
 
 import java.util.List;
@@ -25,9 +27,11 @@ public class MihomoInstanceController {
     private static final Logger log = LoggerFactory.getLogger(MihomoInstanceController.class);
 
     private final MihomoService mihomoService;
+    private final ForwardingPathService forwardingPathService;
 
-    public MihomoInstanceController(MihomoService mihomoService) {
+    public MihomoInstanceController(MihomoService mihomoService, ForwardingPathService forwardingPathService) {
         this.mihomoService = mihomoService;
+        this.forwardingPathService = forwardingPathService;
     }
 
     /**
@@ -121,5 +125,28 @@ public class MihomoInstanceController {
         log.info("向所有实例推送配置");
         Map<String, Boolean> results = mihomoService.pushConfigAll(config);
         return ResponseEntity.ok(results);
+    }
+
+    /**
+     * 查询域名的转发路径
+     */
+    @GetMapping("/{id}/forwarding-path")
+    public ResponseEntity<ForwardingPathResult> getForwardingPath(
+            @PathVariable String id,
+            @RequestParam String domain) {
+        log.debug("查询转发路径: id={}, domain={}", id, domain);
+        String configYaml = mihomoService.getConfig(id);
+        ForwardingPathResult result = forwardingPathService.resolveForwardingPath(configYaml, domain);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * 获取实例当前配置
+     */
+    @GetMapping("/{id}/config")
+    public ResponseEntity<String> getConfig(@PathVariable String id) {
+        log.debug("获取实例配置: id={}", id);
+        String configYaml = mihomoService.getConfig(id);
+        return ResponseEntity.ok(configYaml);
     }
 }
