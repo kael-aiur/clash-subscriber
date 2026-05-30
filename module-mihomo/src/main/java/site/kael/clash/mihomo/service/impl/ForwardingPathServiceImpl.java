@@ -141,9 +141,10 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
                 Map.of("label", groupName, "groupType", type)));
         edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, parentNodeId, groupId));
 
-        // 仅展开当前选中的代理（now 字段），而非全部代理列表
+        // 展开当前选中的代理路径
         String now = (String) proxyInfo.get("now");
         if (now != null) {
+            // 有 now 字段（Selector/URLTest/Fallback 类型），展示当前选中的节点
             if (proxiesMap.containsKey(now)) {
                 // 选中的代理本身也是代理组，递归展开
                 buildGroupNodes(now, proxiesMap, groupId, nodes, edges, edgeCounter);
@@ -153,9 +154,7 @@ public class ForwardingPathServiceImpl implements ForwardingPathService {
                 nodes.add(new ForwardingPathResult.Node(proxyId, "proxy", Map.of("label", now)));
                 edges.add(new ForwardingPathResult.Edge("e-" + edgeCounter[0]++, groupId, proxyId));
             }
-        } else {
-            // 无 now 字段（如 Direct/Reject/Compatible/Pass 类型），不展开子节点
-            log.debug("代理组 '{}' (type={}) 无 now 字段，跳过子节点展开", groupName, type);
         }
+        // 无 now 字段的类型（LoadBalance/Direct/Reject/Compatible/Pass）不再展开子节点
     }
 }
