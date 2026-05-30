@@ -37,7 +37,26 @@ onMounted(async () => {
 
     <el-tabs v-model="activeTab">
       <el-tab-pane label="实例信息" name="info">
-        <!-- 实例信息内容 -->
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="名称">{{ instance?.name }}</el-descriptions-item>
+          <el-descriptions-item label="API URL">{{ instance?.apiUrl }}</el-descriptions-item>
+          <el-descriptions-item label="API Secret">
+            {{ instance?.apiSecret ? '******' : '未设置' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="启用状态">
+            <el-tag :type="instance?.enabled ? 'success' : 'info'">
+              {{ instance?.enabled ? '已启用' : '已禁用' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="健康状态">
+            <el-tag :type="instance?.status === 'HEALTHY' ? 'success' : instance?.status === 'UNHEALTHY' ? 'danger' : 'warning'">
+              {{ instance?.status === 'HEALTHY' ? '健康' : instance?.status === 'UNHEALTHY' ? '异常' : '未知' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="最后检查">
+            {{ instance?.lastHealthCheck || '未检查' }}
+          </el-descriptions-item>
+        </el-descriptions>
       </el-tab-pane>
       <el-tab-pane label="转发规则" name="forwarding">
         <!-- 转发规则内容 -->
