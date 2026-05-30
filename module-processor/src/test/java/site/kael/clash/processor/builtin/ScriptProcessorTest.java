@@ -8,6 +8,7 @@ import site.kael.clash.common.exception.BusinessException;
 import site.kael.clash.common.model.ClashConfig;
 import site.kael.clash.common.model.ProxyNode;
 import site.kael.clash.processor.api.ProcessingContext;
+import site.kael.clash.processor.engine.ScriptEngine;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -26,7 +27,7 @@ class ScriptProcessorTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        processor = new ScriptProcessor();
+        processor = new ScriptProcessor(new ScriptEngine());
         context = new ProcessingContext();
 
         // 通过反射设置 dataPath
