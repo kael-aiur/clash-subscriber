@@ -45,5 +45,8 @@ build/
 data/**/*
 !data/**/.gitkeep
 
+# Module data directory (runtime data)
+module-web/data/**
+
 # Docker
 .docker/
