@@ -36,7 +36,7 @@ const toggle = () => {
 <template>
   <div class="maskable-text">
     <span class="text" :title="isMasked ? '点击眼睛图标查看完整内容' : text">{{ displayText }}</span>
-    <el-icon class="toggle-btn" @click="toggle">
+    <el-icon class="toggle-btn" role="button" tabindex="0" aria-label="切换显示" @click="toggle" @keydown.enter="toggle" @keydown.space.prevent="toggle">
       <Hide v-if="isMasked" />
       <View v-else />
     </el-icon>
@@ -61,11 +61,11 @@ const toggle = () => {
 
 .toggle-btn {
   cursor: pointer;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   flex-shrink: 0;
 }
 
 .toggle-btn:hover {
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 </style>
