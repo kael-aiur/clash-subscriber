@@ -44,3 +44,6 @@ build/
 # Data directory (keep structure, ignore content)
 data/**/*
 !data/**/.gitkeep
+
+# Docker
+.docker/
