@@ -3,10 +3,10 @@ services:
     build: .
     container_name: clash-subscriber
     ports:
-      - "8080:8080"
+      - "31192:31192"
     volumes:
       - ./data:/app/data
     environment:
       - TZ=Asia/Shanghai
-      - SERVER_PORT=${SERVER_PORT:-8080}
+      - SERVER_PORT=${SERVER_PORT:-31192}
     restart: unless-stopped

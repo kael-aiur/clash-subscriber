@@ -27,7 +27,7 @@ Clash/Mihomo 订阅管理中心 — 集中管理多个订阅源，自动同步�
 ```bash
 docker run -d \
   --name clash-subscriber \
-  -p 8080:8080 \
+  -p 31192:31192 \
   -v ./data:/app/data \
   -e TZ=Asia/Shanghai \
   --restart unless-stopped \
@@ -51,7 +51,7 @@ docker-compose up -d
 
 3. 访问应用
 
-打开浏览器访问 http://localhost:8080
+打开浏览器访问 http://localhost:31192
 
 ### 手动部署
 
@@ -73,13 +73,13 @@ java -jar module-web/target/*.jar
 
 ### 端口配置
 
-默认端口：`8080`
+默认端口：`31192`
 
 修改 `module-web/src/main/resources/application.yml`：
 
 ```yaml
 server:
-  port: 8080
+  port: 31192
 ```
 
 或通过环境变量：
