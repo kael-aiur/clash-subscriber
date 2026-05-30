@@ -53,6 +53,14 @@ public interface MihomoService {
     Map<String, HealthStatus> checkHealthAll();
 
     /**
+     * 获取指定实例的当前运行配置
+     *
+     * @param instanceId 实例 ID
+     * @return YAML 格式的配置字符串
+     */
+    String getConfig(String instanceId);
+
+    /**
      * 向单个实例推送配置
      */
     void pushConfig(String instanceId, ClashConfig config);

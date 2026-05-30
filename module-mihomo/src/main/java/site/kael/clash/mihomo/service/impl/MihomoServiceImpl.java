@@ -113,6 +113,13 @@ public class MihomoServiceImpl implements MihomoService {
     }
 
     @Override
+    public String getConfig(String instanceId) {
+        MihomoInstance instance = repository.findById(instanceId)
+                .orElseThrow(() -> new BusinessException(404, "Mihomo 实例不存在: " + instanceId));
+        return httpClient.getConfig(instance.getApiUrl(), instance.getApiSecret());
+    }
+
+    @Override
     public void pushConfig(String instanceId, ClashConfig config) {
         MihomoInstance instance = repository.findById(instanceId)
                 .orElseThrow(() -> new BusinessException("实例不存在: " + instanceId));
