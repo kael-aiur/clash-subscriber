@@ -30,7 +30,8 @@ public class MihomoHttpClient {
 
         try (Response response = client.newCall(builder.build()).execute()) {
             if (!response.isSuccessful()) {
-                throw new BusinessException("推送配置失败: HTTP " + response.code());
+                String body = response.body() != null ? response.body().string() : "";
+                throw new BusinessException("推送配置失败: HTTP " + response.code() + " - " + body);
             }
         } catch (IOException e) {
             throw new BusinessException("推送配置失败: " + e.getMessage());

@@ -15,6 +15,7 @@
         <module>module-processor</module>
         <module>module-mihomo</module>
         <module>module-scheduler</module>
+        <module>module-pipeline</module>
         <module>module-web</module>
     </modules>
 
@@ -78,6 +79,11 @@
             <dependency>
                 <groupId>site.kael.clash</groupId>
                 <artifactId>module-scheduler</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>site.kael.clash</groupId>
+                <artifactId>module-pipeline</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

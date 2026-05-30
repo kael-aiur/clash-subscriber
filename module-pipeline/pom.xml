@@ -10,11 +10,11 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>module-web</artifactId>
+    <artifactId>module-pipeline</artifactId>
     <packaging>jar</packaging>
 
-    <name>module-web</name>
-    <description>REST API 层：订阅管理、Mihomo 节点管理、配置推送接口</description>
+    <name>module-pipeline</name>
+    <description>构建流程：订阅拉取、脚本处理、配置推送与历史记录</description>
 
     <dependencies>
         <!-- 内部模块：公共工具 -->
@@ -41,29 +41,22 @@
             <artifactId>module-mihomo</artifactId>
         </dependency>
 
-        <!-- 内部模块：定时任务 -->
+        <!-- 内部模块：定时调度 -->
         <dependency>
             <groupId>site.kael.clash</groupId>
             <artifactId>module-scheduler</artifactId>
         </dependency>
 
-        <!-- 内部模块：构建流程 -->
-        <dependency>
-            <groupId>site.kael.clash</groupId>
-            <artifactId>module-pipeline</artifactId>
-        </dependency>
-
-        <!-- Spring Boot Web Starter -->
+        <!-- Spring Boot Starter（核心，无 Web） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
-        <!-- Spring Boot 测试 -->
+        <!-- Jackson JSR310 时间模块 -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <!-- JUnit 5 测试 -->
@@ -72,23 +65,18 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-    </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring-boot.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>repackage</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
+        <!-- Mockito 测试 -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
 </project>
