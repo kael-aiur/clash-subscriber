@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { mihomoApi } from '../api/mihomo'
 import { ArrowLeft } from '@element-plus/icons-vue'
+import ForwardingRuleTab from '../components/ForwardingRuleTab.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -59,7 +60,7 @@ onMounted(async () => {
         </el-descriptions>
       </el-tab-pane>
       <el-tab-pane label="转发规则" name="forwarding">
-        <!-- 转发规则内容 -->
+        <ForwardingRuleTab v-if="instance" :instance-id="instanceId" />
       </el-tab-pane>
       <el-tab-pane label="推送历史" name="history">
         <!-- 推送历史内容 -->
