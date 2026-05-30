@@ -45,6 +45,11 @@
                 <artifactId>polyglot</artifactId>
                 <version>${graalvm.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.graalvm.js</groupId>
+                <artifactId>js-language</artifactId>
+                <version>${graalvm.version}</version>
+            </dependency>
 
             <!-- OkHttp -->
             <dependency>
