@@ -174,7 +174,13 @@ onMounted(loadInstances)
     </div>
 
     <el-table :data="instances" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="150" />
+      <el-table-column prop="name" label="名称" min-width="150">
+        <template #default="{ row }">
+          <router-link :to="`/mihomo-instances/${row.id}`" class="instance-link">
+            {{ row.name }}
+          </router-link>
+        </template>
+      </el-table-column>
       <el-table-column prop="apiUrl" label="API 地址" min-width="250" show-overflow-tooltip />
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
@@ -250,3 +256,13 @@ onMounted(loadInstances)
     </el-dialog>
   </div>
 </template>
+
+<style scoped>
+.instance-link {
+  color: #409eff;
+  text-decoration: none;
+}
+.instance-link:hover {
+  text-decoration: underline;
+}
+</style>
