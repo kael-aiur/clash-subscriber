@@ -1,6 +1,24 @@
 import api from './index'
 import type { ClashConfig } from './subscription'
 
+export interface FlowNode {
+  id: string
+  type: 'domain' | 'rule' | 'proxyGroup' | 'proxy' | 'target'
+  data: Record<string, any>
+  position: { x: number; y: number }
+}
+
+export interface FlowEdge {
+  id: string
+  source: string
+  target: string
+}
+
+export interface ForwardingPathResult {
+  nodes: FlowNode[]
+  edges: FlowEdge[]
+}
+
 export interface MihomoInstance {
   id: string
   name: string
@@ -47,4 +65,20 @@ export const mihomoApi = {
   pushConfigAll(config: ClashConfig) {
     return api.post('/mihomo-instances/push', config)
   },
+}
+
+/**
+ * 查询域名的转发路径
+ */
+export function getForwardingPath(id: string, domain: string) {
+  return api.get<ForwardingPathResult>(`/mihomo-instances/${id}/forwarding-path`, {
+    params: { domain }
+  })
+}
+
+/**
+ * 获取实例当前配置
+ */
+export function getMihomoConfig(id: string) {
+  return api.get<string>(`/mihomo-instances/${id}/config`)
 }
