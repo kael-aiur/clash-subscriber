@@ -70,4 +70,20 @@ public interface SchedulerService {
      * @param taskId 任务 ID
      */
     void trigger(String taskId);
+
+    /**
+     * 注册构建流程的 cron 定时任务
+     *
+     * @param pipelineId     构建流程 ID
+     * @param cronExpression cron 表达式
+     * @param callback       触发时的回调
+     */
+    void registerBuildPipelineCron(String pipelineId, String cronExpression, Runnable callback);
+
+    /**
+     * 取消构建流程的 cron 定时任务
+     *
+     * @param pipelineId 构建流程 ID
+     */
+    void cancelBuildPipelineCron(String pipelineId);
 }

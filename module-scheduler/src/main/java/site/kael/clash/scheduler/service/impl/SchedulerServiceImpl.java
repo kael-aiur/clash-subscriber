@@ -186,6 +186,26 @@ public class SchedulerServiceImpl implements SchedulerService {
         executeTask(taskId);
     }
 
+    // ========== 构建流程 Cron 管理 ==========
+
+    @Override
+    public void registerBuildPipelineCron(String pipelineId, String cronExpression, Runnable callback) {
+        cancelBuildPipelineCron(pipelineId);
+        CronTrigger trigger = new CronTrigger(cronExpression);
+        ScheduledFuture<?> future = taskScheduler.schedule(callback, trigger);
+        scheduledJobs.put("bp-" + pipelineId, future);
+        log.info("注册构建流程 cron 调度: {} ({})", pipelineId, cronExpression);
+    }
+
+    @Override
+    public void cancelBuildPipelineCron(String pipelineId) {
+        ScheduledFuture<?> future = scheduledJobs.remove("bp-" + pipelineId);
+        if (future != null) {
+            future.cancel(false);
+            log.info("取消构建流程 cron 调度: {}", pipelineId);
+        }
+    }
+
     // ========== Cron 调度管理 ==========
 
     /**
