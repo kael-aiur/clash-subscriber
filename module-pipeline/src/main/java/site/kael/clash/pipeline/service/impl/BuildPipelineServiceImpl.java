@@ -239,6 +239,7 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
     /**
      * 将 ClashConfig 的字段同步到 raw map，确保 mihomo 推送时 YAML 包含最新数据
      */
+    @SuppressWarnings("unchecked")
     private void syncRawFromFields(ClashConfig config) {
         Map<String, Object> raw = config.getRaw();
         if (raw == null) {
@@ -248,11 +249,29 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         raw.put("proxies", config.getProxies().stream().map(this::proxyNodeToMap).toList());
         // 仅当 typed 字段非空时才覆盖 raw，避免丢失订阅源原始数据
         if (config.getProxyGroups() != null && !config.getProxyGroups().isEmpty()) {
-            raw.put("proxy-groups", config.getProxyGroups());
+            // Mihomo 期望 proxy-groups 为 Array 格式，需从 Map 转换
+            raw.put("proxy-groups", mapToGroupArray(config.getProxyGroups()));
         }
         if (config.getRules() != null && !config.getRules().isEmpty()) {
             raw.put("rules", config.getRules());
         }
+    }
+
+    /**
+     * 将 proxy-groups Map 转为 Mihomo 期望的 Array 格式
+     * Map: {"组名": {type, proxies, ...}} → Array: [{name, type, proxies, ...}]
+     */
+    private List<Map<String, Object>> mapToGroupArray(Map<String, Object> proxyGroups) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : proxyGroups.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> groupMap) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> group = new LinkedHashMap<>((Map<String, Object>) groupMap);
+                group.put("name", entry.getKey());
+                list.add(group);
+            }
+        }
+        return list;
     }
 
     private Map<String, Object> proxyNodeToMap(ProxyNode node) {
