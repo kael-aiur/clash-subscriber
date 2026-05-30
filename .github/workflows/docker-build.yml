@@ -28,7 +28,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: kaelaiur/clash-subscriber
+        images: kael2018/clash-subscriber
         tags: |
           type=ref,event=branch
           type=sha,prefix=
