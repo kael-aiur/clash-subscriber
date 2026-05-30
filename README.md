@@ -22,6 +22,20 @@ Clash/Mihomo 订阅管理中心 — 集中管理多个订阅源，自动同步�
 
 ### Docker 部署（推荐）
 
+**方式一：使用 Docker Hub 镜像（无需克隆代码）**
+
+```bash
+docker run -d \
+  --name clash-subscriber \
+  -p 8080:8080 \
+  -v ./data:/app/data \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  kaelaiur/clash-subscriber:latest
+```
+
+**方式二：使用 docker-compose**
+
 1. 克隆项目
 
 ```bash
