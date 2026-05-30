@@ -3,6 +3,7 @@ package site.kael.clash.mihomo.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import site.kael.clash.common.exception.BusinessException;
 import site.kael.clash.common.model.ClashConfig;
@@ -34,7 +35,9 @@ public class MihomoServiceImpl implements MihomoService {
     public MihomoServiceImpl(MihomoInstanceRepository repository, MihomoHttpClient httpClient) {
         this.repository = repository;
         this.httpClient = httpClient;
-        this.yaml = new Yaml();
+        DumperOptions options = new DumperOptions();
+        options.setWidth(Integer.MAX_VALUE);
+        this.yaml = new Yaml(options);
     }
 
     @Override

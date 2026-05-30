@@ -20,9 +20,10 @@ public class MihomoHttpClient {
     }
 
     public void pushConfig(String apiUrl, String apiSecret, String yamlConfig) {
+        String jsonBody = "{\"payload\":" + toJsonString(yamlConfig) + "}";
         Request.Builder builder = new Request.Builder()
                 .url(apiUrl + "/configs")
-                .put(RequestBody.create(yamlConfig, MediaType.parse("application/x-yaml")));
+                .put(RequestBody.create(jsonBody, MediaType.parse("application/json")));
 
         if (apiSecret != null && !apiSecret.isEmpty()) {
             builder.addHeader("Authorization", "Bearer " + apiSecret);
@@ -36,6 +37,15 @@ public class MihomoHttpClient {
         } catch (IOException e) {
             throw new BusinessException("推送配置失败: " + e.getMessage());
         }
+    }
+
+    private static String toJsonString(String value) {
+        return "\"" + value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t") + "\"";
     }
 
     public boolean checkHealth(String apiUrl, String apiSecret) {

@@ -246,6 +246,7 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             config.setRaw(raw);
         }
         raw.put("proxies", config.getProxies().stream().map(this::proxyNodeToMap).toList());
+        // 仅当 typed 字段非空时才覆盖 raw，避免丢失订阅源原始数据
         if (config.getProxyGroups() != null && !config.getProxyGroups().isEmpty()) {
             raw.put("proxy-groups", config.getProxyGroups());
         }
