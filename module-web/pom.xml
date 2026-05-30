@@ -47,6 +47,12 @@
             <artifactId>module-scheduler</artifactId>
         </dependency>
 
+        <!-- 内部模块：构建流程 -->
+        <dependency>
+            <groupId>site.kael.clash</groupId>
+            <artifactId>module-pipeline</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web Starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
