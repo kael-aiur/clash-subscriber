@@ -134,10 +134,19 @@ public class MihomoInstanceController {
     public ResponseEntity<ForwardingPathResult> getForwardingPath(
             @PathVariable String id,
             @RequestParam String domain) {
-        log.debug("查询转发路径: id={}, domain={}", id, domain);
-        String configYaml = mihomoService.getConfig(id);
-        ForwardingPathResult result = forwardingPathService.resolveForwardingPath(configYaml, domain);
-        return ResponseEntity.ok(result);
+        log.info("查询转发路径: id={}, domain={}", id, domain);
+        try {
+            String rulesJson = mihomoService.getRules(id);
+            String proxiesJson = mihomoService.getProxies(id);
+            log.debug("获取规则数据长度: {}", rulesJson.length());
+            log.debug("获取代理数据长度: {}", proxiesJson.length());
+            ForwardingPathResult result = forwardingPathService.resolveForwardingPath(rulesJson, proxiesJson, domain);
+            log.info("转发路径查询结果: {} 个节点, {} 条边", result.getNodes().size(), result.getEdges().size());
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("查询转发路径失败: id={}, domain={}, error={}", id, domain, e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
