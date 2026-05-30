@@ -1,0 +1,13 @@
+.git
+.gitignore
+.claude
+.idea
+.vscode
+*.iml
+**/target
+**/node_modules
+module-web/data
+data
+.DS_Store
+openspec
+docs
