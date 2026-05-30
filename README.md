@@ -14,9 +14,9 @@ Clash/Mihomo 订阅管理中心 — 集中管理多个订阅源，自动同步�
 
 ## 截图
 
-| 订阅管理 | 实例管理 | 转发路径可视化 |
-|---------|---------|--------------|
-| ![订阅管理](docs/images/subscription.png) | ![实例管理](docs/images/instance.png) | ![转发路径](docs/images/forwarding-path.png) |
+| 实例管理 | 转发路径可视化 |
+|---------|--------------|
+| ![实例管理](docs/images/instance.png) | ![转发路径](docs/images/forwarding-path.png) |
 
 ## 快速开始
 
