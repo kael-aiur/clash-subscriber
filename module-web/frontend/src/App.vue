@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { useRouter, useRoute } from 'vue-router'
 import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { authApi } from '@/api/auth'
+import { authSession, clearAuthSession } from '@/auth/session'
 
 const router = useRouter()
 const route = useRoute()
@@ -12,6 +15,7 @@ const menuItems = [
   { path: '/scripts', label: '脚本管理', icon: 'Document' },
 ]
 
+const isAuthPage = computed(() => route.path === '/auth')
 const currentTitle = computed(() => {
   const item = menuItems.find(m => m.path === route.path)
   return item?.label || 'Clash 订阅管理中心'
@@ -20,10 +24,23 @@ const currentTitle = computed(() => {
 const handleMenuSelect = (path: string) => {
   router.push(path)
 }
+
+const handleLogout = async () => {
+  try {
+    await authApi.logout()
+    ElMessage.success('已退出登录')
+  } catch {
+    ElMessage.warning('退出登录请求失败，已清除本地登录状态')
+  } finally {
+    clearAuthSession()
+    await router.replace('/auth')
+  }
+}
 </script>
 
 <template>
-  <div class="layout">
+  <router-view v-if="isAuthPage" />
+  <div v-else class="layout">
     <div class="sidebar">
       <div class="logo">Clash 订阅中心</div>
       <el-menu
@@ -40,7 +57,13 @@ const handleMenuSelect = (path: string) => {
       </el-menu>
     </div>
     <div class="main">
-      <div class="header">{{ currentTitle }}</div>
+      <div class="header">
+        <span>{{ currentTitle }}</span>
+        <div class="header-actions">
+          <span class="header-user">{{ authSession.username }}</span>
+          <el-button size="small" @click="handleLogout">退出登录</el-button>
+        </div>
+      </div>
       <div class="content">
         <router-view />
       </div>
