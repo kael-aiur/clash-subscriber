@@ -1,1 +1,0 @@
-import{r as e}from"./index-DWmx7wgO.js";var t={list(){return e.get(`/subscriptions`)},create(t){return e.post(`/subscriptions`,t)},get(t){return e.get(`/subscriptions/${t}`)},update(t,n){return e.put(`/subscriptions/${t}`,n)},delete(t){return e.delete(`/subscriptions/${t}`)},fetch(t){return e.post(`/subscriptions/${t}/fetch`)}};export{t};
