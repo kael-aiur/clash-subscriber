@@ -1,1 +1,0 @@
-import{r as e}from"./index-CBAGtCQQ.js";var t={list(){return e.get(`/scripts`)},get(t){return e.get(`/scripts/${t}`)},save(t){return e.post(`/scripts`,t)},delete(t){return e.delete(`/scripts/${t}`)}};export{t};

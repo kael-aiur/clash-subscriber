@@ -1,0 +1,1 @@
+import{r as e}from"./index-DWmx7wgO.js";var t={list(){return e.get(`/scripts`)},get(t){return e.get(`/scripts/${t}`)},save(t){return e.post(`/scripts`,t)},delete(t){return e.delete(`/scripts/${t}`)}};export{t};
