@@ -185,6 +185,16 @@ const formatTime = (time?: string) => {
   return time.replace('T', ' ').substring(0, 19)
 }
 
+const spanMethod = ({ row, column }: { row: TreeRow; column: { property?: string; label?: string } }) => {
+  if (row.type !== 'record') return
+  const label = column.label
+  // 叶子行：脚本列合并4列，目标实例/定时/启用列隐藏；状态列合并操作列
+  if (label === '脚本') return { rowspan: 1, colspan: 4 }
+  if (label === '目标实例' || label === '定时' || label === '启用') return { rowspan: 0, colspan: 0 }
+  if (label === '状态') return { rowspan: 1, colspan: 2 }
+  if (label === '操作') return { rowspan: 0, colspan: 0 }
+}
+
 onMounted(loadData)
 </script>
 
@@ -207,6 +217,7 @@ onMounted(loadData)
       lazy
       :load="loadTreeChildren"
       :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+      :span-method="spanMethod"
       @row-click="goToRecordDetail"
     >
       <el-table-column prop="name" label="名称" min-width="180">
@@ -235,7 +246,7 @@ onMounted(loadData)
             {{ row.scriptName || '-' }}
           </template>
           <template v-else>
-            {{ row.errorMessage || '-' }}
+            <span class="record-error">{{ row.errorMessage || '-' }}</span>
           </template>
         </template>
       </el-table-column>
@@ -274,7 +285,7 @@ onMounted(loadData)
           </template>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="220">
         <template #default="{ row }">
           <template v-if="row.type === 'pipeline'">
             <el-button size="small" type="success" @click.stop="handleExecute(row)">
@@ -363,6 +374,15 @@ onMounted(loadData)
 .record-time {
   font-size: 12px;
   color: #909399;
+}
+
+.record-error {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 :deep(.el-table__row--level-1) {
