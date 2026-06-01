@@ -4,6 +4,7 @@ import org.yaml.snakeyaml.Yaml;
 import site.kael.clash.common.model.ClashConfig;
 import site.kael.clash.common.model.ProxyNode;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,6 +19,10 @@ public class YamlUtil {
         Map<String, Object> data = yaml.load(content);
         ClashConfig config = new ClashConfig();
         config.setRaw(data);
+
+        if (data.containsKey("name")) {
+            config.setName(String.valueOf(data.get("name")));
+        }
 
         if (data.containsKey("proxies")) {
             List<Map<String, Object>> proxies = (List<Map<String, Object>>) data.get("proxies");
@@ -34,6 +39,25 @@ public class YamlUtil {
                 node.setExtra(proxy);
                 config.getProxies().add(node);
             }
+        }
+
+        if (data.containsKey("proxy-groups")) {
+            Object rawGroups = data.get("proxy-groups");
+            if (rawGroups instanceof List) {
+                List<Map<String, Object>> groupList = (List<Map<String, Object>>) rawGroups;
+                Map<String, Object> groupMap = new LinkedHashMap<>();
+                for (Map<String, Object> group : groupList) {
+                    String name = (String) group.get("name");
+                    if (name != null) {
+                        groupMap.put(name, group);
+                    }
+                }
+                config.setProxyGroups(groupMap);
+            }
+        }
+
+        if (data.containsKey("rules")) {
+            config.setRules((List<Object>) data.get("rules"));
         }
 
         return config;
