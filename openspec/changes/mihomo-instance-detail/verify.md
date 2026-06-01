@@ -75,8 +75,55 @@ plan.md 中 Task 13 Step 3 包含手动测试步骤（启动应用、访问页�
 
 ---
 
+## 8. 实现对照验证（深度验证）
+
+**验证时间**: 2026-06-01
+**验证方式**: 逐 spec 逐场景对照实际代码
+
+### 实现覆盖矩阵
+
+| 需求 | 覆盖状态 | 关键文件 |
+|------|----------|----------|
+| 获取实例当前配置 | ✅ | `MihomoHttpClient.java:49`, `MihomoServiceImpl.java:116` |
+| 规则解析 | ✅ | `ForwardingPathServiceImpl.java:21-68` |
+| 代理组解析 | ✅ | `ForwardingPathServiceImpl.java` buildGroupNodes |
+| 域名规则匹配 | ⚠️ 部分 | `ForwardingPathServiceImpl.java:75-99` (缺 IP-CIDR/GEOIP) |
+| 流程图数据构建 | ✅ | `ForwardingPathServiceImpl.java:48-64` |
+| 转发路径查询 API | ✅ | `MihomoInstanceController.java:133-150` |
+| 实例详情页路由 | ✅ | `router/index.ts:30` |
+| 实例信息标签页 | ✅ | `MihomoInstanceDetailView.vue:72` |
+| 转发规则标签页 | ✅ | `ForwardingRuleTab.vue` |
+| 推送历史标签页 | ✅ | `MihomoInstanceDetailView.vue:97` |
+| 列表页跳转 | ✅ | `MihomoInstanceView.vue:180` |
+
+### WARNING 问题
+
+#### W1: IP-CIDR 和 GEOIP 规则类型未实现
+
+- **规格要求**: `forwarding-path-parsing/spec.md` — "系统支持 DOMAIN、DOMAIN-SUFFIX、DOMAIN-KEYWORD、IP-CIDR、GEOIP、MATCH 类型"
+- **实际实现**: `ForwardingPathServiceImpl.java:96` — 注释 `// IP-CIDR, GeoIP 等不支持域名匹配，跳过`
+- **原因**: IP-CIDR 和 GEOIP 需要 IP 地址才能匹配，域名查询场景下无法直接匹配，代码注释已说明
+- **建议**: 更新 spec 文件，将 IP-CIDR 和 GEOIP 标注为「域名查询场景下跳过」，使 spec 与实现一致
+
+#### W2: 自定义节点组件未独立拆分
+
+- **规格要求**: `tasks.md` 6.3 — "创建自定义节点组件：DomainNode、RuleNode、ProxyGroupNode、ProxyNode、TargetNode"
+- **实际实现**: `ForwardingRuleTab.vue` 使用 Vue Flow 默认节点渲染，未创建独立组件文件
+- **说明**: 功能完整可用，节点通过 dagre 布局自动排列。不同节点类型缺少视觉区分（颜色、图标）
+- **建议**: 后续可添加自定义节点组件增强视觉效果
+
+#### W3: 代理组展开/折叠交互未实现
+
+- **规格要求**: `web-ui/spec.md` — "代理组节点的展开/折叠交互逻辑"
+- **实际实现**: `ForwardingRuleTab.vue` 使用默认节点，无展开/折叠按钮
+- **说明**: 当前流程图展示完整转发路径，展开/折叠可作为后续增强
+
+---
+
 ## Overall Decision
 
-- [x] ✅ PASS — 可进入 finishing-a-development-branch 与 archive
+- [x] ⚠️ PASS WITH WARNINGS — 3 个 WARNING 需关注，无 CRITICAL 问题
 
-**下一步**：提交代码并推送到远程仓库。
+**建议**:
+1. 处理 W1: 更新 `forwarding-path-parsing/spec.md` 使 spec 与实现一致
+2. W2、W3 可作为后续优化项，不影响核心功能
