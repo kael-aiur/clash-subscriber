@@ -47,6 +47,12 @@ const router = createRouter({
       name: 'build-pipelines',
       component: () => import('@/views/BuildPipelineView.vue'),
     },
+    {
+      path: '/build-records/:id',
+      name: 'build-record-detail',
+      component: () => import('@/views/BuildRecordDetailView.vue'),
+      meta: { title: '构建记录详情' },
+    },
   ],
 })
 

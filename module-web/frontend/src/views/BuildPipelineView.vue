@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { buildPipelineApi, type BuildPipeline, type BuildRecord } from '@/api/build-pipeline'
 import { subscriptionApi, type Subscription } from '@/api/subscription'
 import { mihomoApi, type MihomoInstance } from '@/api/mihomo'
 import { scriptApi } from '@/api/script'
 
+const router = useRouter()
 const pipelines = ref<BuildPipeline[]>([])
 const subscriptions = ref<Subscription[]>([])
 const instances = ref<MihomoInstance[]>([])
@@ -17,11 +19,9 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('新建构建流程')
 const form = ref<Partial<BuildPipeline>>({})
 
-// 历史抽屉
-const drawerVisible = ref(false)
-const drawerRecords = ref<BuildRecord[]>([])
-const drawerPipelineName = ref('')
-const drawerLoading = ref(false)
+// 展开行的构建记录缓存
+const expandedRecords = ref<Record<string, BuildRecord[]>>({})
+const expandedLoading = ref<Record<string, boolean>>({})
 
 const subscriptionMap = computed(() => {
   const map: Record<string, string> = {}
@@ -118,23 +118,35 @@ const handleExecute = async (pipeline: BuildPipeline) => {
       ElMessage.error(`构建失败: ${record.errorMessage || '未知错误'}`)
     }
     await loadData()
+    // 刷新展开行的记录
+    if (expandedRecords.value[pipeline.id]) {
+      loadRecords(pipeline.id)
+    }
   } catch {
     ElMessage.error('触发构建失败')
   }
 }
 
-const openHistory = async (pipeline: BuildPipeline) => {
-  drawerPipelineName.value = pipeline.name
-  drawerLoading.value = true
-  drawerVisible.value = true
-  try {
-    const res = await buildPipelineApi.getRecords(pipeline.id)
-    drawerRecords.value = res.data
-  } catch {
-    ElMessage.error('加载构建历史失败')
-  } finally {
-    drawerLoading.value = false
+const handleExpandChange = (row: BuildPipeline, expanded: boolean) => {
+  if (expanded && !expandedRecords.value[row.id]) {
+    loadRecords(row.id)
   }
+}
+
+const loadRecords = async (pipelineId: string) => {
+  expandedLoading.value[pipelineId] = true
+  try {
+    const res = await buildPipelineApi.getRecords(pipelineId)
+    expandedRecords.value[pipelineId] = res.data.slice(0, 10)
+  } catch {
+    ElMessage.error('加载构建记录失败')
+  } finally {
+    expandedLoading.value[pipelineId] = false
+  }
+}
+
+const goToRecordDetail = (recordId: string) => {
+  router.push(`/build-records/${recordId}`)
 }
 
 const statusType = (status?: string) => {
@@ -164,7 +176,40 @@ onMounted(loadData)
       </el-button>
     </div>
 
-    <el-table :data="pipelines" v-loading="loading" border stripe>
+    <el-table :data="pipelines" v-loading="loading" border stripe row-key="id" @expand-change="handleExpandChange">
+      <el-table-column type="expand">
+        <template #default="{ row }">
+          <div style="padding: 12px 24px;">
+            <el-table
+              :data="expandedRecords[row.id] || []"
+              v-loading="expandedLoading[row.id]"
+              border
+              size="small"
+              @row-click="(record: BuildRecord) => goToRecordDetail(record.id)"
+              style="cursor: pointer;"
+            >
+              <el-table-column label="开始时间" width="180">
+                <template #default="{ row: record }">
+                  {{ record.startedAt?.replace('T', ' ').substring(0, 19) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="80" align="center">
+                <template #default="{ row: record }">
+                  <el-tag :type="statusType(record.status)" size="small">
+                    {{ statusLabel(record.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="错误信息" min-width="200">
+                <template #default="{ row: record }">
+                  {{ record.errorMessage || '-' }}
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!expandedLoading[row.id] && (!expandedRecords[row.id] || expandedRecords[row.id].length === 0)" description="暂无构建记录" :image-size="60" />
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="名称" min-width="150" />
       <el-table-column label="主订阅" min-width="150">
         <template #default="{ row }">
@@ -200,14 +245,13 @@ onMounted(loadData)
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="320" fixed="right">
+      <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="success" @click="handleExecute(row)">
             <el-icon><CaretRight /></el-icon>
             构建
           </el-button>
           <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
-          <el-button size="small" type="info" @click="openHistory(row)">历史</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -276,39 +320,5 @@ onMounted(loadData)
         <el-button type="primary" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
-
-    <!-- 构建历史抽屉 -->
-    <el-drawer v-model="drawerVisible" :title="`构建历史: ${drawerPipelineName}`" size="600px">
-      <el-table :data="drawerRecords" v-loading="drawerLoading" border stripe>
-        <el-table-column label="开始时间" width="180">
-          <template #default="{ row }">
-            {{ row.startedAt?.replace('T', ' ').substring(0, 19) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">
-              {{ statusLabel(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="错误信息" min-width="200">
-          <template #default="{ row }">
-            {{ row.errorMessage || '-' }}
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-if="drawerRecords.length > 0" style="margin-top: 16px;">
-        <h4>最近一次执行日志</h4>
-        <el-input
-          type="textarea"
-          :rows="10"
-          :model-value="drawerRecords[0]?.logs?.join('\n') || '无日志'"
-          readonly
-          style="font-family: monospace;"
-        />
-      </div>
-      <el-empty v-if="!drawerLoading && drawerRecords.length === 0" description="暂无构建记录" />
-    </el-drawer>
   </div>
 </template>

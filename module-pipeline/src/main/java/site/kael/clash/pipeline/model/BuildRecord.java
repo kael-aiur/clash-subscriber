@@ -12,6 +12,7 @@ public class BuildRecord {
     private String status;
     private String errorMessage;
     private List<String> logs = new ArrayList<>();
+    private List<BuildStep> steps = new ArrayList<>();
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -27,4 +28,6 @@ public class BuildRecord {
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public List<String> getLogs() { return logs; }
     public void setLogs(List<String> logs) { this.logs = logs; }
+    public List<BuildStep> getSteps() { return steps; }
+    public void setSteps(List<BuildStep> steps) { this.steps = steps; }
 }
