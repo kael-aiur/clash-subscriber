@@ -11,6 +11,7 @@ import site.kael.clash.common.util.IdGenerator;
 import site.kael.clash.mihomo.service.MihomoService;
 import site.kael.clash.pipeline.model.BuildPipeline;
 import site.kael.clash.pipeline.model.BuildRecord;
+import site.kael.clash.pipeline.model.BuildStep;
 import site.kael.clash.pipeline.repository.BuildPipelineRepository;
 import site.kael.clash.pipeline.repository.BuildRecordRepository;
 import site.kael.clash.pipeline.service.BuildPipelineService;
@@ -141,9 +142,11 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         record.setStatus("RUNNING");
 
         log.info("开始执行构建流程: {} ({})", pipeline.getName(), pipelineId);
+        List<BuildStep> steps = record.getSteps();
 
         try {
-            // 1. 拉取主订阅配置（保留原始 raw 数据用于推送到 mihomo）
+            // 1. 拉取主订阅配置
+            BuildStep step1 = startStep("拉取主订阅配置", pipeline.getPrimarySubscriptionId());
             ClashConfig config = subscriptionService.fetch(pipeline.getPrimarySubscriptionId());
             if (config == null) {
                 config = new ClashConfig("empty");
@@ -151,8 +154,11 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 config.setProxies(new ArrayList<>());
             }
             List<ProxyNode> allProxies = new ArrayList<>(config.getProxies() != null ? config.getProxies() : Collections.emptyList());
+            finishStep(step1, "SUCCESS", "节点数: " + allProxies.size());
+            steps.add(step1);
 
             // 2. 合并额外订阅节点
+            BuildStep step2 = startStep("合并额外订阅节点", pipeline.getAdditionalSubscriptionIds());
             if (pipeline.getAdditionalSubscriptionIds() != null) {
                 for (String subId : pipeline.getAdditionalSubscriptionIds()) {
                     try {
@@ -167,14 +173,15 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                     }
                 }
             }
-
-            // 更新 proxies 列表，并同步更新 raw 中的 proxies（mihomo 推送使用 raw）
             config.setProxies(allProxies);
             config.getRaw().put("proxies", allProxies.stream().map(this::proxyNodeToMap).toList());
+            finishStep(step2, "SUCCESS", "合并后节点总数: " + allProxies.size());
+            steps.add(step2);
             record.getLogs().add("合并节点总数: " + allProxies.size());
 
-            // 3. 生成 PipelineConfig 并执行脚本处理
+            // 3. 脚本处理
             if (pipeline.getScriptName() != null && !pipeline.getScriptName().isBlank()) {
+                BuildStep step3 = startStep("脚本处理", pipeline.getScriptName());
                 PipelineConfig pipelineConfig = new PipelineConfig();
                 pipelineConfig.setId("auto-" + pipelineId);
                 pipelineConfig.setName("auto-generated");
@@ -187,20 +194,29 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 ProcessingContext context = new ProcessingContext();
                 config = pipelineService.execute(pipelineConfig, config, context);
                 record.getLogs().addAll(context.getLogs());
+                finishStep(step3, "SUCCESS", "脚本处理完成");
+                steps.add(step3);
                 record.getLogs().add("脚本处理完成: " + pipeline.getScriptName());
+            } else {
+                BuildStep step3 = new BuildStep();
+                step3.setName("脚本处理");
+                step3.setStatus("SKIPPED");
+                steps.add(step3);
             }
 
-            // 4. 同步 raw 数据并推送到目标 mihomo 实例
+            // 4. 推送到目标 mihomo 实例
+            BuildStep step4 = startStep("推送到 Mihomo", pipeline.getTargetInstanceId());
             syncRawFromFields(config);
             log.debug("推送 YAML 内容: {}", new org.yaml.snakeyaml.Yaml().dump(config.getRaw()));
             mihomoService.pushConfig(pipeline.getTargetInstanceId(), config);
+            finishStep(step4, "SUCCESS", "配置推送成功");
+            steps.add(step4);
             record.getLogs().add("配置推送成功: " + pipeline.getTargetInstanceId());
 
-            // 5. 记录成功
+            // 记录成功
             record.setStatus("SUCCESS");
             record.setFinishedAt(LocalDateTime.now());
 
-            // 更新流程的最近执行状态
             pipeline.setLastRunAt(record.getFinishedAt());
             pipeline.setLastRunStatus("SUCCESS");
             pipelineRepository.save(pipeline);
@@ -272,6 +288,20 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             }
         }
         return list;
+    }
+
+    private BuildStep startStep(String name, Object input) {
+        BuildStep step = new BuildStep();
+        step.setName(name);
+        step.setStartedAt(LocalDateTime.now());
+        step.setInput(input);
+        return step;
+    }
+
+    private void finishStep(BuildStep step, String status, Object output) {
+        step.setStatus(status);
+        step.setFinishedAt(LocalDateTime.now());
+        step.setOutput(output);
     }
 
     private Map<String, Object> proxyNodeToMap(ProxyNode node) {

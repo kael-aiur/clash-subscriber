@@ -15,6 +15,16 @@ export interface BuildPipeline {
   lastRunStatus?: 'SUCCESS' | 'FAILED' | 'RUNNING'
 }
 
+export interface BuildStep {
+  name: string
+  status: 'SUCCESS' | 'FAILED' | 'SKIPPED'
+  startedAt?: string
+  finishedAt?: string
+  input?: any
+  output?: any
+  errorMessage?: string
+}
+
 export interface BuildRecord {
   id: string
   buildPipelineId: string
@@ -23,6 +33,7 @@ export interface BuildRecord {
   status: 'SUCCESS' | 'FAILED' | 'RUNNING'
   errorMessage?: string
   logs: string[]
+  steps: BuildStep[]
 }
 
 export const buildPipelineApi = {
