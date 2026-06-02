@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { subscriptionApi } from '@/api/subscription'
-import type { Subscription, ClashConfig, ProxyGroup } from '@/api/subscription'
+import type { Subscription, ClashConfig, ProxyNode, ProxyGroup } from '@/api/subscription'
 import MaskableText from '@/components/MaskableText.vue'
 import TreeNode from '@/components/TreeNode.vue'
 
@@ -30,6 +30,65 @@ const groupDetailPanelVisible = ref(false)
 const groupRuleTypeFilter = ref('')
 const rawYamlVisible = ref(false)
 const rawYamlContent = ref('')
+
+// 国旗 emoji → 中文地区名映射
+const FLAG_REGION_MAP: Record<string, string> = {
+  '🇭🇰': '香港', '🇲🇴': '澳门', '🇹🇼': '台湾',
+  '🇨🇳': '中国',
+  '🇯🇵': '日本', '🇰🇷': '韩国',
+  '🇸🇬': '新加坡', '🇲🇾': '马来西亚', '🇹🇭': '泰国', '🇻🇳': '越南',
+  '🇵🇭': '菲律宾', '🇮🇩': '印度尼西亚',
+  '🇺🇸': '美国', '🇨🇦': '加拿大',
+  '🇬🇧': '英国', '🇩🇪': '德国', '🇫🇷': '法国', '🇳🇱': '荷兰',
+  '🇷🇺': '俄罗斯',
+  '🇦🇺': '澳大利亚', '🇳🇿': '新西兰',
+  '🇮🇳': '印度', '🇵🇰': '巴基斯坦',
+  '🇧🇷': '巴西', '🇦🇷': '阿根廷', '🇨🇱': '智利',
+  '🇹🇷': '土耳其', '🇮🇱': '以色列', '🇦🇪': '阿联酋',
+  '🇿🇦': '南非', '🇪🇬': '埃及', '🇳🇬': '尼日利亚', '🇰🇪': '肯尼亚',
+}
+
+interface RegionGroup {
+  region: string
+  flag: string
+  nodes: ProxyNode[]
+  count: number
+}
+
+// 代理节点地区分组
+const proxySearchKeyword = ref('')
+const expandedRegions = ref<string[]>([])
+
+const filteredProxies = computed(() => {
+  const keyword = proxySearchKeyword.value.trim().toLowerCase()
+  const proxies = detailData.value?.proxies || []
+  if (!keyword) return proxies
+  return proxies.filter(node => node.name.toLowerCase().includes(keyword))
+})
+
+const regionGroups = computed<RegionGroup[]>(() => {
+  const groups = new Map<string, RegionGroup>()
+
+  for (const node of filteredProxies.value) {
+    const match = node.name.match(/^(\p{Emoji_Presentation})/u)
+    const flag = match?.[1] ?? ''
+    const region = flag ? (FLAG_REGION_MAP[flag] || '其他') : '其他'
+    const key = region
+
+    if (!groups.has(key)) {
+      groups.set(key, { region, flag: key === '其他' ? '' : flag, nodes: [], count: 0 })
+    }
+    const group = groups.get(key)!
+    group.nodes.push(node)
+    group.count++
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.region === '其他') return 1
+    if (b.region === '其他') return -1
+    return b.count - a.count
+  })
+})
 
 const form = ref<Partial<Subscription>>({
   name: '',
@@ -535,14 +594,37 @@ onMounted(loadSubscriptions)
             <el-button style="margin-top: 12px;" @click="showRawYaml">查看原始配置</el-button>
           </el-tab-pane>
 
-          <!-- 代理节点 -->
+          <!-- 代理节点（按地区分组） -->
           <el-tab-pane :label="`代理节点 (${detailData?.proxies?.length || 0})`" name="proxies">
-            <el-table :data="detailData?.proxies || []" border stripe max-height="500">
-              <el-table-column prop="name" label="名称" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="type" label="类型" width="100" />
-              <el-table-column prop="server" label="服务器" min-width="150" />
-              <el-table-column prop="port" label="端口" width="80" />
-            </el-table>
+            <el-input
+              v-model="proxySearchKeyword"
+              placeholder="搜索节点名称..."
+              clearable
+              style="margin-bottom: 12px;"
+            />
+            <template v-if="regionGroups.length > 0">
+              <el-collapse v-model="expandedRegions">
+                <el-collapse-item
+                  v-for="group in regionGroups"
+                  :key="group.region"
+                  :name="group.region"
+                >
+                  <template #title>
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                      <span style="font-weight: 600;">{{ group.flag }} {{ group.region }}</span>
+                      <el-tag size="small" type="info">{{ group.count }} 个节点</el-tag>
+                    </span>
+                  </template>
+                  <el-table :data="group.nodes" border stripe size="small">
+                    <el-table-column prop="name" label="名称" min-width="200" show-overflow-tooltip />
+                    <el-table-column prop="type" label="类型" width="100" />
+                    <el-table-column prop="server" label="服务器" min-width="150" />
+                    <el-table-column prop="port" label="端口" width="80" />
+                  </el-table>
+                </el-collapse-item>
+              </el-collapse>
+            </template>
+            <el-empty v-else description="暂无代理节点" />
           </el-tab-pane>
 
           <!-- 节点组（增强版） -->
