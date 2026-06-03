@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { buildRecordApi, type BuildRecord, type BuildStep } from '@/api/build-pipeline'
+import ConfigCard from '@/components/ConfigCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,6 +62,18 @@ const formatJson = (data: any) => {
   if (data === null || data === undefined) return '-'
   if (typeof data === 'string') return data
   return JSON.stringify(data, null, 2)
+}
+
+const isConfigData = (data: any): boolean => {
+  return data !== null && typeof data === 'object' && !Array.isArray(data) && 'configSummary' in data
+}
+
+const isStep1Input = (data: any): boolean => {
+  return data !== null && typeof data === 'object' && 'subscriptionName' in data
+}
+
+const isStep4Output = (data: any): boolean => {
+  return data !== null && typeof data === 'object' && 'success' in data
 }
 
 const selectStep = (index: number) => {
@@ -163,24 +176,55 @@ onMounted(loadRecord)
 
               <div style="margin-top: 16px;">
                 <h4 style="margin-bottom: 8px;">输入</h4>
-                <el-input
-                  type="textarea"
-                  :rows="4"
-                  :model-value="formatJson(record.steps[activeStep].input)"
-                  readonly
-                  style="font-family: monospace;"
-                />
+                <template v-if="isStep1Input(record.steps[activeStep].input)">
+                  <el-tag>订阅源: {{ record.steps[activeStep].input.subscriptionName }}</el-tag>
+                </template>
+                <template v-else-if="isConfigData(record.steps[activeStep].input)">
+                  <template v-if="record.steps[activeStep].input.subscriptionName || record.steps[activeStep].input.scriptName || record.steps[activeStep].input.instanceName">
+                    <el-tag v-if="record.steps[activeStep].input.subscriptionName" style="margin-bottom: 8px;">订阅源: {{ record.steps[activeStep].input.subscriptionName }}</el-tag>
+                    <el-tag v-if="record.steps[activeStep].input.scriptName" style="margin-bottom: 8px;">脚本: {{ record.steps[activeStep].input.scriptName }}</el-tag>
+                    <el-tag v-if="record.steps[activeStep].input.instanceName" style="margin-bottom: 8px;">实例: {{ record.steps[activeStep].input.instanceName }}</el-tag>
+                  </template>
+                  <ConfigCard
+                    v-if="record.steps[activeStep].input.configSummary"
+                    :summary="record.steps[activeStep].input.configSummary"
+                    :yaml-content="record.steps[activeStep].input.configYaml"
+                    style="margin-top: 8px;"
+                  />
+                </template>
+                <template v-else>
+                  <el-input
+                    type="textarea"
+                    :rows="4"
+                    :model-value="formatJson(record.steps[activeStep].input)"
+                    readonly
+                    style="font-family: monospace;"
+                  />
+                </template>
               </div>
 
               <div style="margin-top: 16px;">
                 <h4 style="margin-bottom: 8px;">输出</h4>
-                <el-input
-                  type="textarea"
-                  :rows="4"
-                  :model-value="formatJson(record.steps[activeStep].output)"
-                  readonly
-                  style="font-family: monospace;"
-                />
+                <template v-if="isStep4Output(record.steps[activeStep].output)">
+                  <el-tag :type="record.steps[activeStep].output.success ? 'success' : 'danger'">
+                    {{ record.steps[activeStep].output.success ? '推送成功' : '推送失败' }}
+                  </el-tag>
+                </template>
+                <template v-else-if="isConfigData(record.steps[activeStep].output)">
+                  <ConfigCard
+                    :summary="record.steps[activeStep].output.configSummary"
+                    :yaml-content="record.steps[activeStep].output.configYaml"
+                  />
+                </template>
+                <template v-else>
+                  <el-input
+                    type="textarea"
+                    :rows="4"
+                    :model-value="formatJson(record.steps[activeStep].output)"
+                    readonly
+                    style="font-family: monospace;"
+                  />
+                </template>
               </div>
             </el-card>
           </div>
