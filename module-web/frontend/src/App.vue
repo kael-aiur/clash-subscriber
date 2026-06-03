@@ -13,6 +13,7 @@ const menuItems = [
   { path: '/mihomo-instances', label: 'Mihomo 实例', icon: 'Monitor' },
   { path: '/build-pipelines', label: '构建流程', icon: 'SetUp' },
   { path: '/scripts', label: '脚本管理', icon: 'Document' },
+  { path: '/node-tags', label: '标签管理', icon: 'PriceTag' },
 ]
 
 const isAuthPage = computed(() => route.path === '/auth')

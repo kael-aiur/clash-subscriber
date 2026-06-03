@@ -3,6 +3,8 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription, ClashConfig, ProxyNode, ProxyGroup } from '@/api/subscription'
+import { nodeTagApi } from '@/api/nodeTag'
+import type { NodeTag } from '@/api/nodeTag'
 import MaskableText from '@/components/MaskableText.vue'
 import TreeNode from '@/components/TreeNode.vue'
 
@@ -31,26 +33,11 @@ const groupRuleTypeFilter = ref('')
 const rawYamlVisible = ref(false)
 const rawYamlContent = ref('')
 
-// 国旗 emoji → 中文地区名映射
-const FLAG_REGION_MAP: Record<string, string> = {
-  '🇭🇰': '香港', '🇲🇴': '澳门', '🇹🇼': '台湾',
-  '🇨🇳': '中国',
-  '🇯🇵': '日本', '🇰🇷': '韩国',
-  '🇸🇬': '新加坡', '🇲🇾': '马来西亚', '🇹🇭': '泰国', '🇻🇳': '越南',
-  '🇵🇭': '菲律宾', '🇮🇩': '印度尼西亚',
-  '🇺🇸': '美国', '🇨🇦': '加拿大',
-  '🇬🇧': '英国', '🇩🇪': '德国', '🇫🇷': '法国', '🇳🇱': '荷兰',
-  '🇷🇺': '俄罗斯',
-  '🇦🇺': '澳大利亚', '🇳🇿': '新西兰',
-  '🇮🇳': '印度', '🇵🇰': '巴基斯坦',
-  '🇧🇷': '巴西', '🇦🇷': '阿根廷', '🇨🇱': '智利',
-  '🇹🇷': '土耳其', '🇮🇱': '以色列', '🇦🇪': '阿联酋',
-  '🇿🇦': '南非', '🇪🇬': '埃及', '🇳🇬': '尼日利亚', '🇰🇪': '肯尼亚',
-}
+// 节点标签
+const nodeTags = ref<NodeTag[]>([])
 
 interface RegionGroup {
   region: string
-  flag: string
   nodes: ProxyNode[]
   count: number
 }
@@ -68,26 +55,29 @@ const filteredProxies = computed(() => {
 
 const regionGroups = computed<RegionGroup[]>(() => {
   const groups = new Map<string, RegionGroup>()
+  const otherGroup: RegionGroup = { region: '其他', nodes: [], count: 0 }
 
   for (const node of filteredProxies.value) {
-    const match = node.name.match(/^(\p{Emoji_Presentation})/u)
-    const flag = match?.[1] ?? ''
-    const region = flag ? (FLAG_REGION_MAP[flag] || '其他') : '其他'
-    const key = region
-
-    if (!groups.has(key)) {
-      groups.set(key, { region, flag: key === '其他' ? '' : flag, nodes: [], count: 0 })
+    let matched = false
+    for (const tag of nodeTags.value) {
+      if (tag.patterns.some(p => node.name.includes(p))) {
+        const group = groups.get(tag.name) || { region: tag.name, nodes: [], count: 0 }
+        group.nodes.push(node)
+        group.count++
+        groups.set(tag.name, group)
+        matched = true
+        break
+      }
     }
-    const group = groups.get(key)!
-    group.nodes.push(node)
-    group.count++
+    if (!matched) {
+      otherGroup.nodes.push(node)
+      otherGroup.count++
+    }
   }
 
-  return Array.from(groups.values()).sort((a, b) => {
-    if (a.region === '其他') return 1
-    if (b.region === '其他') return -1
-    return b.count - a.count
-  })
+  const result = Array.from(groups.values())
+  if (otherGroup.count > 0) result.push(otherGroup)
+  return result
 })
 
 const form = ref<Partial<Subscription>>({
@@ -488,7 +478,19 @@ const isRuleTypeExpanded = (policy: string, type: string) => {
   return ruleExpandedTypes.value.includes(`${policy}::${type}`)
 }
 
-onMounted(loadSubscriptions)
+const loadNodeTags = async () => {
+  try {
+    const res = await nodeTagApi.list()
+    nodeTags.value = res.data
+  } catch {
+    // 标签加载失败不影响订阅功能
+  }
+}
+
+onMounted(() => {
+  loadSubscriptions()
+  loadNodeTags()
+})
 </script>
 
 <template>
@@ -611,7 +613,7 @@ onMounted(loadSubscriptions)
                 >
                   <template #title>
                     <span style="display: flex; align-items: center; gap: 8px;">
-                      <span style="font-weight: 600;">{{ group.flag }} {{ group.region }}</span>
+                      <span style="font-weight: 600;">{{ group.region }}</span>
                       <el-tag size="small" type="info">{{ group.count }} 个节点</el-tag>
                     </span>
                   </template>

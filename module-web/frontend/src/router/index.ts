@@ -53,6 +53,11 @@ const router = createRouter({
       component: () => import('@/views/BuildRecordDetailView.vue'),
       meta: { title: '构建记录详情' },
     },
+    {
+      path: '/node-tags',
+      name: 'node-tags',
+      component: () => import('@/views/NodeTagManageView.vue'),
+    },
   ],
 })
 
