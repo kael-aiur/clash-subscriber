@@ -61,12 +61,13 @@ watch(dialogVisible, async (visible) => {
   if (visible) {
     await nextTick()
     // 等待对话框动画完成后再初始化编辑器
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (editorContainer.value) {
         editor = createEditor(editorContainer.value, form.value.content)
-        editor.layout()
+        // 强制重新布局，确保容器宽度正确
+        requestAnimationFrame(() => editor?.layout())
       }
-    }, 100)
+    })
   } else {
     editor?.dispose()
     editor = null
@@ -76,12 +77,12 @@ watch(dialogVisible, async (visible) => {
 watch(viewDialogVisible, async (visible) => {
   if (visible) {
     await nextTick()
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (viewEditorContainer.value) {
         viewEditor = createEditor(viewEditorContainer.value, form.value.content, true)
-        viewEditor.layout()
+        requestAnimationFrame(() => viewEditor?.layout())
       }
-    }, 100)
+    })
   } else {
     viewEditor?.dispose()
     viewEditor = null
@@ -229,7 +230,7 @@ onMounted(() => {
           <el-input v-model="form.name" placeholder="脚本名称" />
         </el-form-item>
         <el-form-item label="内容" required>
-          <div ref="editorContainer" style="height: 400px; border: 1px solid #dcdfe6; border-radius: 4px;"></div>
+          <div ref="editorContainer" style="width: 100%; height: 400px; border: 1px solid #dcdfe6; border-radius: 4px;"></div>
         </el-form-item>
         <el-form-item label="试运行">
           <div style="display: flex; gap: 12px; align-items: center;">
@@ -286,7 +287,7 @@ onMounted(() => {
 
     <!-- 查看内容对话框 -->
     <el-dialog v-model="viewDialogVisible" :title="`查看脚本: ${viewName}`" width="800px" destroy-on-close>
-      <div ref="viewEditorContainer" style="height: 500px; border: 1px solid #dcdfe6; border-radius: 4px;"></div>
+      <div ref="viewEditorContainer" style="width: 100%; height: 500px; border: 1px solid #dcdfe6; border-radius: 4px;"></div>
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
       </template>
