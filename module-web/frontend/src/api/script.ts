@@ -5,6 +5,20 @@ export interface ScriptData {
   content: string
 }
 
+export interface TryRunResult {
+  success: boolean
+  summary?: {
+    proxiesBefore: number
+    proxiesAfter: number
+    groupsBefore: number
+    groupsAfter: number
+    rulesBefore: number
+    rulesAfter: number
+  }
+  config?: Record<string, unknown>
+  error?: string
+}
+
 export const scriptApi = {
   list() {
     return api.get<string[]>('/scripts')
@@ -20,5 +34,9 @@ export const scriptApi = {
 
   delete(name: string) {
     return api.delete(`/scripts/${name}`)
+  },
+
+  tryRun(scriptContent: string, subscriptionId: string) {
+    return api.post<TryRunResult>('/scripts/try-run', { scriptContent, subscriptionId })
   },
 }

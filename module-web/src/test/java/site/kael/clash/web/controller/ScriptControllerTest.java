@@ -26,7 +26,7 @@ class ScriptControllerTest {
 
     @BeforeEach
     void setUp() {
-        ScriptController controller = new ScriptController(tempDir.toString());
+        ScriptController controller = new ScriptController(tempDir.toString(), null, null);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())

@@ -1,0 +1,1 @@
+import{i as e}from"./index-CLXiDJiE.js";var t={list(){return e.get(`/node-tags`)},create(t){return e.post(`/node-tags`,t)},get(t){return e.get(`/node-tags/${t}`)},update(t,n){return e.put(`/node-tags/${t}`,n)},delete(t){return e.delete(`/node-tags/${t}`)}};export{t};

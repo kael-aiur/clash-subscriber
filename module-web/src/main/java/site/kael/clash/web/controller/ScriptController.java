@@ -6,11 +6,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import site.kael.clash.common.exception.BusinessException;
+import site.kael.clash.common.model.ClashConfig;
+import site.kael.clash.processor.engine.ScriptEngine;
+import site.kael.clash.subscription.service.SubscriptionService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,9 +33,15 @@ public class ScriptController {
     private static final Logger log = LoggerFactory.getLogger(ScriptController.class);
 
     private final Path scriptsDir;
+    private final SubscriptionService subscriptionService;
+    private final ScriptEngine scriptEngine;
 
-    public ScriptController(@Value("${data.path:data}") String dataPath) {
+    public ScriptController(@Value("${data.path:data}") String dataPath,
+                            SubscriptionService subscriptionService,
+                            ScriptEngine scriptEngine) {
         this.scriptsDir = Path.of(dataPath, "scripts");
+        this.subscriptionService = subscriptionService;
+        this.scriptEngine = scriptEngine;
     }
 
     /**
@@ -112,6 +122,58 @@ public class ScriptController {
             return ResponseEntity.noContent().build();
         } catch (IOException e) {
             throw new BusinessException("删除脚本文件失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 试运行脚本：获取订阅源配置后执行脚本，返回结果摘要
+     */
+    @PostMapping("/try-run")
+    public ResponseEntity<Map<String, Object>> tryRun(@RequestBody Map<String, String> body) {
+        String scriptContent = body.get("scriptContent");
+        String subscriptionId = body.get("subscriptionId");
+
+        if (scriptContent == null || scriptContent.isBlank()) {
+            throw new BusinessException(400, "脚本内容不能为空");
+        }
+        if (subscriptionId == null || subscriptionId.isBlank()) {
+            throw new BusinessException(400, "请选择订阅源");
+        }
+
+        log.info("试运行脚本: subscriptionId={}", subscriptionId);
+
+        try {
+            ClashConfig config = subscriptionService.fetch(subscriptionId);
+            int proxiesBefore = config.getProxies().size();
+            int groupsBefore = config.getProxyGroups().size();
+            int rulesBefore = config.getRules().size();
+
+            ClashConfig result = scriptEngine.execute(scriptContent, config, "try-run");
+
+            int proxiesAfter = result.getProxies().size();
+            int groupsAfter = result.getProxyGroups().size();
+            int rulesAfter = result.getRules().size();
+
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("proxiesBefore", proxiesBefore);
+            summary.put("proxiesAfter", proxiesAfter);
+            summary.put("groupsBefore", groupsBefore);
+            summary.put("groupsAfter", groupsAfter);
+            summary.put("rulesBefore", rulesBefore);
+            summary.put("rulesAfter", rulesAfter);
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("success", true);
+            response.put("summary", summary);
+            response.put("config", result.getRaw());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.warn("试运行失败: {}", e.getMessage());
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.ok(response);
         }
     }
 }
