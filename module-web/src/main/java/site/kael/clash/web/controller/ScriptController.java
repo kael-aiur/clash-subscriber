@@ -165,10 +165,20 @@ public class ScriptController {
             summary.put("rulesBefore", rulesBefore);
             summary.put("rulesAfter", rulesAfter);
 
+            Map<String, Object> inputSummary = buildConfigSummary(config);
+            String inputYaml = serializeToYaml(config.getRaw());
+
+            Map<String, Object> outputSummary = buildConfigSummary(result);
+            String outputYaml = serializeToYaml(result.getRaw());
+
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
             response.put("summary", summary);
             response.put("config", result.getRaw());
+            response.put("inputSummary", inputSummary);
+            response.put("inputYaml", inputYaml);
+            response.put("outputSummary", outputSummary);
+            response.put("outputYaml", outputYaml);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
