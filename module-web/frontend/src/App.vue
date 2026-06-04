@@ -17,7 +17,12 @@ const menuItems = [
 ]
 
 const isAuthPage = computed(() => route.path === '/auth')
+const isFullscreen = computed(() => route.meta.fullscreen === true)
 const currentTitle = computed(() => {
+  // 优先使用路由 meta 中的 title
+  if (route.meta.title) {
+    return route.meta.title as string
+  }
   const item = menuItems.find(m => m.path === route.path)
   return item?.label || 'Clash 订阅管理中心'
 })
@@ -65,7 +70,7 @@ const handleLogout = async () => {
           <el-button size="small" @click="handleLogout">退出登录</el-button>
         </div>
       </div>
-      <div class="content">
+      <div :class="['content', { 'content-fullscreen': isFullscreen }]">
         <router-view />
       </div>
     </div>

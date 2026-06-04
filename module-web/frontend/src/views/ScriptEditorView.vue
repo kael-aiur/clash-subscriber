@@ -137,8 +137,7 @@ onBeforeRouteLeave((_to, _from, next) => {
 <style scoped>
 .editor-layout {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh - 60px); /* 减去 header 60px */
   overflow: hidden;
 }
 

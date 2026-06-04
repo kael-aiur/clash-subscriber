@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import * as monaco from 'monaco-editor'
 
 const props = defineProps<{
@@ -41,6 +41,19 @@ onMounted(async () => {
         emit('dirty', true)
       }
     })
+  }
+})
+
+// 监听 initialContent 变化，更新编辑器内容
+watch(() => props.initialContent, (newContent) => {
+  if (editor && newContent) {
+    const currentValue = editor.getValue()
+    // 只在内容不同时更新，避免覆盖用户编辑
+    if (currentValue !== newContent) {
+      editor.setValue(newContent)
+      isDirty.value = false
+      emit('dirty', false)
+    }
   }
 })
 

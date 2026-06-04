@@ -64,6 +64,11 @@ html, body {
   overflow-y: auto;
 }
 
+.layout .main .content-fullscreen {
+  padding: 0;
+  overflow: hidden;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;

@@ -46,7 +46,7 @@ const router = createRouter({
       path: '/scripts/edit/:name',
       name: 'ScriptEditor',
       component: () => import('@/views/ScriptEditorView.vue'),
-      meta: { title: '编辑脚本' },
+      meta: { title: '编辑脚本', fullscreen: true },
     },
     {
       path: '/build-pipelines',
