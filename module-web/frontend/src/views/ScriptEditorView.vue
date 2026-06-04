@@ -92,7 +92,7 @@ const handleBack = () => {
 }
 
 // 页面离开保护
-onBeforeRouteLeave((to, from, next) => {
+onBeforeRouteLeave((_to, _from, next) => {
   if (isDirty.value) {
     ElMessageBox.confirm('脚本尚未保存，确定离开？', '提示', { type: 'warning' })
       .then(() => next())
