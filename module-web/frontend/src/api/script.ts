@@ -5,6 +5,19 @@ export interface ScriptData {
   content: string
 }
 
+export interface ConfigSummary {
+  nodeCount: number
+  proxyGroupCount: number
+  ruleCount: number
+  nodeNames?: string[]
+  proxyGroupNames?: string[]
+}
+
+export interface PreviewSubscriptionResult {
+  summary: ConfigSummary
+  yaml: string
+}
+
 export interface TryRunResult {
   success: boolean
   summary?: {
@@ -17,6 +30,10 @@ export interface TryRunResult {
   }
   config?: Record<string, unknown>
   error?: string
+  inputSummary?: ConfigSummary
+  inputYaml?: string
+  outputSummary?: ConfigSummary
+  outputYaml?: string
 }
 
 export const scriptApi = {
@@ -38,5 +55,9 @@ export const scriptApi = {
 
   tryRun(scriptContent: string, subscriptionId: string) {
     return api.post<TryRunResult>('/scripts/try-run', { scriptContent, subscriptionId })
+  },
+
+  previewSubscription(subscriptionId: string) {
+    return api.post<PreviewSubscriptionResult>('/scripts/preview-subscription', { subscriptionId })
   },
 }
