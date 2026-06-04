@@ -1,1 +1,0 @@
-import{i as e}from"./index-CNrk_dvT.js";var t={list(){return e.get(`/scripts`)},get(t){return e.get(`/scripts/${t}`)},save(t){return e.post(`/scripts`,t)},delete(t){return e.delete(`/scripts/${t}`)},tryRun(t,n){return e.post(`/scripts/try-run`,{scriptContent:t,subscriptionId:n})}};export{t};
