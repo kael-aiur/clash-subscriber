@@ -15,6 +15,10 @@ public class YamlUtil {
         return yaml.load(content);
     }
 
+    public static String dump(Object data) {
+        return yaml.dump(data);
+    }
+
     public static ClashConfig parseClashConfig(String content) {
         Map<String, Object> data = yaml.load(content);
         ClashConfig config = new ClashConfig();

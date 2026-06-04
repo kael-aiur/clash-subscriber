@@ -9,7 +9,7 @@ import site.kael.clash.common.exception.BusinessException;
 import site.kael.clash.common.model.ClashConfig;
 import site.kael.clash.common.model.ProxyNode;
 import java.util.Collections;
-import org.yaml.snakeyaml.Yaml;
+import site.kael.clash.common.util.YamlUtil;
 import site.kael.clash.processor.engine.ScriptEngine;
 import site.kael.clash.subscription.service.SubscriptionService;
 
@@ -223,7 +223,6 @@ public class ScriptController {
     }
 
     private String serializeToYaml(Map<String, Object> raw) {
-        Yaml yaml = new Yaml();
-        return yaml.dump(raw);
+        return YamlUtil.dump(raw);
     }
 }
