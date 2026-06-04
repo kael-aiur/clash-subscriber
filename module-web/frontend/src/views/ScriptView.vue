@@ -60,9 +60,13 @@ const createEditor = (container: HTMLElement, content: string, readOnly = false)
 watch(dialogVisible, async (visible) => {
   if (visible) {
     await nextTick()
-    if (editorContainer.value) {
-      editor = createEditor(editorContainer.value, form.value.content)
-    }
+    // 等待对话框动画完成后再初始化编辑器
+    setTimeout(() => {
+      if (editorContainer.value) {
+        editor = createEditor(editorContainer.value, form.value.content)
+        editor.layout()
+      }
+    }, 100)
   } else {
     editor?.dispose()
     editor = null
@@ -72,9 +76,12 @@ watch(dialogVisible, async (visible) => {
 watch(viewDialogVisible, async (visible) => {
   if (visible) {
     await nextTick()
-    if (viewEditorContainer.value) {
-      viewEditor = createEditor(viewEditorContainer.value, form.value.content, true)
-    }
+    setTimeout(() => {
+      if (viewEditorContainer.value) {
+        viewEditor = createEditor(viewEditorContainer.value, form.value.content, true)
+        viewEditor.layout()
+      }
+    }, 100)
   } else {
     viewEditor?.dispose()
     viewEditor = null

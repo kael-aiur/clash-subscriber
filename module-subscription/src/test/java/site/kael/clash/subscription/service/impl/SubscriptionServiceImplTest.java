@@ -337,15 +337,9 @@ class SubscriptionServiceImplTest {
 
     @Test
     void saveAndLoadCache_roundTrip() {
-        ClashConfig config = new ClashConfig();
-        config.setRaw(Map.of(
-                "mixed-port", 7890,
-                "proxies", List.of(
-                        Map.of("name", "n1", "type", "ss", "server", "s1.com", "port", 443)
-                )
-        ));
+        String yamlContent = "mixed-port: 7890\nproxies:\n- {name: n1, type: ss, server: s1.com, port: 443}\n";
 
-        service.saveToCache("cache-test", config);
+        service.saveToCache("cache-test", yamlContent);
 
         Optional<ClashConfig> loaded = service.loadFromCache("cache-test");
         assertTrue(loaded.isPresent());

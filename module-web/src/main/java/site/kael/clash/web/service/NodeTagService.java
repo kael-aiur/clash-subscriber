@@ -30,4 +30,17 @@ public interface NodeTagService {
      * 按 ID 删除节点标签。
      */
     void deleteById(String id);
+
+    /**
+     * 导出全部标签（用于 JSON 下载）。
+     */
+    List<NodeTag> exportAll();
+
+    /**
+     * 批量导入标签，为每个标签生成新 ID。
+     *
+     * @param tags 待导入的标签列表
+     * @return 成功导入的数量
+     */
+    int importAll(List<NodeTag> tags);
 }

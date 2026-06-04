@@ -4,6 +4,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { nodeTagApi } from '@/api/nodeTag'
 import type { NodeTag } from '@/api/nodeTag'
 
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
 const tags = ref<NodeTag[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -102,6 +104,42 @@ const handleDelete = (tag: NodeTag) => {
   }).catch(() => {})
 }
 
+const handleExport = async () => {
+  try {
+    const res = await nodeTagApi.export()
+    const blob = new Blob([res.data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'node-tags.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch {
+    ElMessage.error('导出失败')
+  }
+}
+
+const handleImportClick = () => {
+  fileInputRef.value?.click()
+}
+
+const handleImport = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    const res = await nodeTagApi.importData(file)
+    ElMessage.success(`导入成功，共 ${res.data.count} 个标签`)
+    await loadTags()
+  } catch {
+    ElMessage.error('导入失败，请检查文件格式')
+  } finally {
+    input.value = ''
+  }
+}
+
 onMounted(loadTags)
 </script>
 
@@ -109,11 +147,22 @@ onMounted(loadTags)
   <div>
     <div class="page-header">
       <h2>节点标签管理</h2>
-      <el-button type="primary" @click="openDialog()">
-        <el-icon><Plus /></el-icon>
-        新增标签
-      </el-button>
+      <div>
+        <el-button @click="handleImportClick">
+          <el-icon><Upload /></el-icon>
+          导入
+        </el-button>
+        <el-button @click="handleExport">
+          <el-icon><Download /></el-icon>
+          导出
+        </el-button>
+        <el-button type="primary" @click="openDialog()">
+          <el-icon><Plus /></el-icon>
+          新增标签
+        </el-button>
+      </div>
     </div>
+    <input ref="fileInputRef" type="file" accept=".json" style="display: none;" @change="handleImport" />
 
     <el-table :data="tags" v-loading="loading" border stripe>
       <el-table-column prop="priority" label="优先级" width="100" sortable />

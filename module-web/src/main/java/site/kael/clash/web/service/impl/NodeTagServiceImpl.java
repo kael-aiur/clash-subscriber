@@ -63,4 +63,23 @@ public class NodeTagServiceImpl implements NodeTagService {
         log.info("删除节点标签: id={}", id);
         repository.deleteById(id);
     }
+
+    @Override
+    public List<NodeTag> exportAll() {
+        return findAll();
+    }
+
+    @Override
+    public int importAll(List<NodeTag> tags) {
+        int count = 0;
+        for (NodeTag tag : tags) {
+            tag.setId(IdGenerator.generate());
+            tag.setCreatedAt(LocalDateTime.now());
+            tag.setUpdatedAt(LocalDateTime.now());
+            repository.save(tag);
+            count++;
+        }
+        log.info("批量导入节点标签: count={}", count);
+        return count;
+    }
 }

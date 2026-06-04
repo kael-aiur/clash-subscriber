@@ -29,4 +29,16 @@ export const nodeTagApi = {
   delete(id: string) {
     return api.delete(`/node-tags/${id}`)
   },
+
+  export() {
+    return api.get('/node-tags/export', { responseType: 'blob' })
+  },
+
+  importData(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<{ count: number }>('/node-tags/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
