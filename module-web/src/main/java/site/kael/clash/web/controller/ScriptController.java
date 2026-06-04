@@ -7,6 +7,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import site.kael.clash.common.exception.BusinessException;
 import site.kael.clash.common.model.ClashConfig;
+import site.kael.clash.common.model.ProxyNode;
+import java.util.Collections;
+import org.yaml.snakeyaml.Yaml;
 import site.kael.clash.processor.engine.ScriptEngine;
 import site.kael.clash.subscription.service.SubscriptionService;
 
@@ -175,5 +178,52 @@ public class ScriptController {
             response.put("error", e.getMessage());
             return ResponseEntity.ok(response);
         }
+    }
+
+    /**
+     * 预览订阅源配置：获取订阅源的完整配置摘要和 YAML
+     */
+    @PostMapping("/preview-subscription")
+    public ResponseEntity<Map<String, Object>> previewSubscription(@RequestBody Map<String, String> body) {
+        String subscriptionId = body.get("subscriptionId");
+        if (subscriptionId == null || subscriptionId.isBlank()) {
+            throw new BusinessException(400, "请选择订阅源");
+        }
+
+        log.info("预览订阅配置: subscriptionId={}", subscriptionId);
+
+        try {
+            ClashConfig config = subscriptionService.fetch(subscriptionId);
+            Map<String, Object> summary = buildConfigSummary(config);
+            String yaml = serializeToYaml(config.getRaw());
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("summary", summary);
+            response.put("yaml", yaml);
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.warn("预览订阅配置失败: {}", e.getMessage());
+            throw new BusinessException("获取订阅配置失败: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> buildConfigSummary(ClashConfig config) {
+        List<ProxyNode> proxies = config.getProxies() != null ? config.getProxies() : Collections.emptyList();
+        Map<String, Object> groups = config.getProxyGroups() != null ? config.getProxyGroups() : Collections.emptyMap();
+        List<Object> rules = config.getRules() != null ? config.getRules() : Collections.emptyList();
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("nodeCount", proxies.size());
+        summary.put("proxyGroupCount", groups.size());
+        summary.put("ruleCount", rules.size());
+        summary.put("nodeNames", proxies.stream().limit(5).map(ProxyNode::getName).collect(Collectors.toList()));
+        summary.put("proxyGroupNames", groups.keySet().stream().limit(5).collect(Collectors.toList()));
+        return summary;
+    }
+
+    private String serializeToYaml(Map<String, Object> raw) {
+        Yaml yaml = new Yaml();
+        return yaml.dump(raw);
     }
 }
