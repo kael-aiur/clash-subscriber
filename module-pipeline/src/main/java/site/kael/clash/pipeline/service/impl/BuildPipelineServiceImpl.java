@@ -11,6 +11,7 @@ import site.kael.clash.common.util.IdGenerator;
 import site.kael.clash.mihomo.service.MihomoService;
 import site.kael.clash.pipeline.model.BuildPipeline;
 import site.kael.clash.pipeline.model.BuildRecord;
+import site.kael.clash.pipeline.model.BuildStep;
 import site.kael.clash.pipeline.repository.BuildPipelineRepository;
 import site.kael.clash.pipeline.repository.BuildRecordRepository;
 import site.kael.clash.pipeline.service.BuildPipelineService;
@@ -27,6 +28,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class BuildPipelineServiceImpl implements BuildPipelineService {
@@ -141,9 +143,14 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         record.setStatus("RUNNING");
 
         log.info("开始执行构建流程: {} ({})", pipeline.getName(), pipelineId);
+        List<BuildStep> steps = record.getSteps();
 
         try {
-            // 1. 拉取主订阅配置（保留原始 raw 数据用于推送到 mihomo）
+            // 1. 拉取主订阅配置
+            String primarySubName = subscriptionService.findById(pipeline.getPrimarySubscriptionId())
+                    .map(site.kael.clash.subscription.model.Subscription::getName)
+                    .orElse(pipeline.getPrimarySubscriptionId());
+            BuildStep step1 = startStep("拉取主订阅配置", Map.of("subscriptionName", primarySubName));
             ClashConfig config = subscriptionService.fetch(pipeline.getPrimarySubscriptionId());
             if (config == null) {
                 config = new ClashConfig("empty");
@@ -151,13 +158,31 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 config.setProxies(new ArrayList<>());
             }
             List<ProxyNode> allProxies = new ArrayList<>(config.getProxies() != null ? config.getProxies() : Collections.emptyList());
+            Map<String, Object> step1Output = new LinkedHashMap<>();
+            step1Output.put("configSummary", buildConfigSummary(config));
+            step1Output.put("configYaml", configToYaml(config));
+            finishStep(step1, "SUCCESS", step1Output);
+            steps.add(step1);
 
             // 2. 合并额外订阅节点
+            Map<String, Object> step2Input = new LinkedHashMap<>();
+            step2Input.put("mainConfigSummary", buildConfigSummary(config));
+            step2Input.put("mainConfigYaml", configToYaml(config));
+            List<Map<String, Object>> extraConfigs = new ArrayList<>();
+            BuildStep step2 = startStep("合并额外订阅节点", null); // input 后续设置
             if (pipeline.getAdditionalSubscriptionIds() != null) {
                 for (String subId : pipeline.getAdditionalSubscriptionIds()) {
                     try {
                         ClashConfig extra = subscriptionService.fetch(subId);
                         if (extra != null && extra.getProxies() != null) {
+                            String extraName = subscriptionService.findById(subId)
+                                    .map(site.kael.clash.subscription.model.Subscription::getName)
+                                    .orElse(subId);
+                            Map<String, Object> extraInfo = new LinkedHashMap<>();
+                            extraInfo.put("subscriptionName", extraName);
+                            extraInfo.put("configSummary", buildConfigSummary(extra));
+                            extraInfo.put("configYaml", configToYaml(extra));
+                            extraConfigs.add(extraInfo);
                             allProxies.addAll(extra.getProxies());
                             log.debug("合并额外订阅: {}，节点数: {}", subId, extra.getProxies().size());
                         }
@@ -167,14 +192,24 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                     }
                 }
             }
-
-            // 更新 proxies 列表，并同步更新 raw 中的 proxies（mihomo 推送使用 raw）
+            step2Input.put("extraConfigs", extraConfigs);
+            step2.setInput(step2Input);
             config.setProxies(allProxies);
             config.getRaw().put("proxies", allProxies.stream().map(this::proxyNodeToMap).toList());
+            Map<String, Object> step2Output = new LinkedHashMap<>();
+            step2Output.put("configSummary", buildConfigSummary(config));
+            step2Output.put("configYaml", configToYaml(config));
+            finishStep(step2, "SUCCESS", step2Output);
+            steps.add(step2);
             record.getLogs().add("合并节点总数: " + allProxies.size());
 
-            // 3. 生成 PipelineConfig 并执行脚本处理
+            // 3. 脚本处理
             if (pipeline.getScriptName() != null && !pipeline.getScriptName().isBlank()) {
+                Map<String, Object> step3Input = new LinkedHashMap<>();
+                step3Input.put("scriptName", pipeline.getScriptName());
+                step3Input.put("configSummary", buildConfigSummary(config));
+                step3Input.put("configYaml", configToYaml(config));
+                BuildStep step3 = startStep("脚本处理", step3Input);
                 PipelineConfig pipelineConfig = new PipelineConfig();
                 pipelineConfig.setId("auto-" + pipelineId);
                 pipelineConfig.setName("auto-generated");
@@ -187,20 +222,44 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 ProcessingContext context = new ProcessingContext();
                 config = pipelineService.execute(pipelineConfig, config, context);
                 record.getLogs().addAll(context.getLogs());
+                Map<String, Object> step3Output = new LinkedHashMap<>();
+                step3Output.put("configSummary", buildConfigSummary(config));
+                step3Output.put("configYaml", configToYaml(config));
+                finishStep(step3, "SUCCESS", step3Output);
+                steps.add(step3);
                 record.getLogs().add("脚本处理完成: " + pipeline.getScriptName());
+            } else {
+                BuildStep step3 = new BuildStep();
+                step3.setName("脚本处理");
+                step3.setStatus("SKIPPED");
+                steps.add(step3);
             }
 
-            // 4. 同步 raw 数据并推送到目标 mihomo 实例
+            // 4. 推送到目标 mihomo 实例
+            String instanceName = mihomoService.findById(pipeline.getTargetInstanceId())
+                    .map(site.kael.clash.mihomo.model.MihomoInstance::getName)
+                    .orElse(pipeline.getTargetInstanceId());
+            Map<String, Object> step4Input = new LinkedHashMap<>();
+            step4Input.put("instanceName", instanceName);
+            step4Input.put("configSummary", buildConfigSummary(config));
+            step4Input.put("configYaml", configToYaml(config));
+            BuildStep step4 = startStep("推送到 Mihomo", step4Input);
             syncRawFromFields(config);
             log.debug("推送 YAML 内容: {}", new org.yaml.snakeyaml.Yaml().dump(config.getRaw()));
-            mihomoService.pushConfig(pipeline.getTargetInstanceId(), config);
+            try {
+                mihomoService.pushConfig(pipeline.getTargetInstanceId(), config);
+                finishStep(step4, "SUCCESS", Map.of("success", true));
+            } catch (Exception pushEx) {
+                finishStep(step4, "FAILED", Map.of("success", false));
+                throw pushEx;
+            }
+            steps.add(step4);
             record.getLogs().add("配置推送成功: " + pipeline.getTargetInstanceId());
 
-            // 5. 记录成功
+            // 记录成功
             record.setStatus("SUCCESS");
             record.setFinishedAt(LocalDateTime.now());
 
-            // 更新流程的最近执行状态
             pipeline.setLastRunAt(record.getFinishedAt());
             pipeline.setLastRunStatus("SUCCESS");
             pipelineRepository.save(pipeline);
@@ -272,6 +331,39 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             }
         }
         return list;
+    }
+
+    private BuildStep startStep(String name, Object input) {
+        BuildStep step = new BuildStep();
+        step.setName(name);
+        step.setStartedAt(LocalDateTime.now());
+        step.setInput(input);
+        return step;
+    }
+
+    private void finishStep(BuildStep step, String status, Object output) {
+        step.setStatus(status);
+        step.setFinishedAt(LocalDateTime.now());
+        step.setOutput(output);
+    }
+
+    private Map<String, Object> buildConfigSummary(ClashConfig config) {
+        List<ProxyNode> proxies = config.getProxies() != null ? config.getProxies() : Collections.emptyList();
+        Map<String, Object> groups = config.getProxyGroups() != null ? config.getProxyGroups() : Collections.emptyMap();
+        List<Object> rules = config.getRules() != null ? config.getRules() : Collections.emptyList();
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("nodeCount", proxies.size());
+        summary.put("proxyGroupCount", groups.size());
+        summary.put("ruleCount", rules.size());
+        summary.put("nodeNames", proxies.stream().limit(5).map(ProxyNode::getName).collect(Collectors.toList()));
+        summary.put("proxyGroupNames", groups.keySet().stream().limit(5).collect(Collectors.toList()));
+        return summary;
+    }
+
+    private String configToYaml(ClashConfig config) {
+        syncRawFromFields(config);
+        return new org.yaml.snakeyaml.Yaml().dump(config.getRaw());
     }
 
     private Map<String, Object> proxyNodeToMap(ProxyNode node) {

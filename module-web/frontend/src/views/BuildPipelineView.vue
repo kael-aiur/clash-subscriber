@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { buildPipelineApi, type BuildPipeline, type BuildRecord } from '@/api/build-pipeline'
+import { buildPipelineApi, type BuildPipeline, type TreeRow } from '@/api/build-pipeline'
 import { subscriptionApi, type Subscription } from '@/api/subscription'
 import { mihomoApi, type MihomoInstance } from '@/api/mihomo'
 import { scriptApi } from '@/api/script'
 
-const pipelines = ref<BuildPipeline[]>([])
+const router = useRouter()
+const treeData = ref<TreeRow[]>([])
 const subscriptions = ref<Subscription[]>([])
 const instances = ref<MihomoInstance[]>([])
 const scriptNames = ref<string[]>([])
@@ -17,11 +19,8 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('新建构建流程')
 const form = ref<Partial<BuildPipeline>>({})
 
-// 历史抽屉
-const drawerVisible = ref(false)
-const drawerRecords = ref<BuildRecord[]>([])
-const drawerPipelineName = ref('')
-const drawerLoading = ref(false)
+// 记录缓存
+const loadedRecords = ref<Set<string>>(new Set())
 
 const subscriptionMap = computed(() => {
   const map: Record<string, string> = {}
@@ -44,7 +43,20 @@ const loadData = async () => {
       mihomoApi.list(),
       scriptApi.list(),
     ])
-    pipelines.value = pipeRes.data
+    treeData.value = pipeRes.data.map(p => ({
+      id: p.id,
+      type: 'pipeline' as const,
+      name: p.name,
+      hasChildren: true,
+      primarySubscriptionId: p.primarySubscriptionId,
+      additionalSubscriptionIds: p.additionalSubscriptionIds,
+      scriptName: p.scriptName,
+      targetInstanceId: p.targetInstanceId,
+      cronExpression: p.cronExpression,
+      enabled: p.enabled,
+      lastRunAt: p.lastRunAt,
+      lastRunStatus: p.lastRunStatus,
+    }))
     subscriptions.value = subRes.data
     instances.value = instRes.data
     scriptNames.value = scriptRes.data
@@ -53,6 +65,28 @@ const loadData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadTreeChildren = (row: TreeRow, _treeNode: unknown, resolve: (data: TreeRow[]) => void) => {
+  buildPipelineApi.getRecords(row.id).then(res => {
+    loadedRecords.value.add(row.id)
+    const children: TreeRow[] = res.data.slice(0, 10).map(r => ({
+      id: r.id,
+      type: 'record' as const,
+      name: r.startedAt?.replace('T', ' ').substring(0, 19) || '-',
+      buildPipelineId: r.buildPipelineId,
+      startedAt: r.startedAt,
+      finishedAt: r.finishedAt,
+      status: r.status,
+      errorMessage: r.errorMessage,
+      logs: r.logs,
+      steps: r.steps,
+    }))
+    resolve(children)
+  }).catch(() => {
+    ElMessage.error('加载构建记录失败')
+    resolve([])
+  })
 }
 
 const openCreateDialog = () => {
@@ -69,7 +103,7 @@ const openCreateDialog = () => {
   dialogVisible.value = true
 }
 
-const openEditDialog = (pipeline: BuildPipeline) => {
+const openEditDialog = (pipeline: TreeRow) => {
   dialogTitle.value = '编辑构建流程'
   form.value = { ...pipeline }
   dialogVisible.value = true
@@ -88,19 +122,21 @@ const handleSubmit = async () => {
     }
     ElMessage.success('保存成功')
     dialogVisible.value = false
+    loadedRecords.value.clear()
     await loadData()
   } catch {
     ElMessage.error('保存失败')
   }
 }
 
-const handleDelete = (pipeline: BuildPipeline) => {
+const handleDelete = (pipeline: TreeRow) => {
   ElMessageBox.confirm(`确定删除构建流程「${pipeline.name}」？`, '确认删除', {
     type: 'warning',
   }).then(async () => {
     try {
       await buildPipelineApi.delete(pipeline.id)
       ElMessage.success('删除成功')
+      loadedRecords.value.clear()
       await loadData()
     } catch {
       ElMessage.error('删除失败')
@@ -108,7 +144,7 @@ const handleDelete = (pipeline: BuildPipeline) => {
   }).catch(() => {})
 }
 
-const handleExecute = async (pipeline: BuildPipeline) => {
+const handleExecute = async (pipeline: TreeRow) => {
   try {
     const res = await buildPipelineApi.execute(pipeline.id)
     const record = res.data
@@ -117,23 +153,16 @@ const handleExecute = async (pipeline: BuildPipeline) => {
     } else {
       ElMessage.error(`构建失败: ${record.errorMessage || '未知错误'}`)
     }
+    loadedRecords.value.delete(pipeline.id)
     await loadData()
   } catch {
     ElMessage.error('触发构建失败')
   }
 }
 
-const openHistory = async (pipeline: BuildPipeline) => {
-  drawerPipelineName.value = pipeline.name
-  drawerLoading.value = true
-  drawerVisible.value = true
-  try {
-    const res = await buildPipelineApi.getRecords(pipeline.id)
-    drawerRecords.value = res.data
-  } catch {
-    ElMessage.error('加载构建历史失败')
-  } finally {
-    drawerLoading.value = false
+const goToRecordDetail = (row: TreeRow) => {
+  if (row.type === 'record') {
+    router.push(`/build-records/${row.id}`)
   }
 }
 
@@ -151,6 +180,21 @@ const statusLabel = (status?: string) => {
   return '-'
 }
 
+const formatTime = (time?: string) => {
+  if (!time) return '-'
+  return time.replace('T', ' ').substring(0, 19)
+}
+
+const spanMethod = ({ row, column }: { row: TreeRow; column: { property?: string; label?: string } }) => {
+  if (row.type !== 'record') return
+  const label = column.label
+  // 叶子行：脚本列合并4列，目标实例/定时/启用列隐藏；状态列合并操作列
+  if (label === '脚本') return { rowspan: 1, colspan: 4 }
+  if (label === '目标实例' || label === '定时' || label === '启用') return { rowspan: 0, colspan: 0 }
+  if (label === '状态') return { rowspan: 1, colspan: 2 }
+  if (label === '操作') return { rowspan: 0, colspan: 0 }
+}
+
 onMounted(loadData)
 </script>
 
@@ -164,51 +208,93 @@ onMounted(loadData)
       </el-button>
     </div>
 
-    <el-table :data="pipelines" v-loading="loading" border stripe>
-      <el-table-column prop="name" label="名称" min-width="150" />
-      <el-table-column label="主订阅" min-width="150">
+    <el-table
+      :data="treeData"
+      v-loading="loading"
+      border
+      stripe
+      row-key="id"
+      lazy
+      :load="loadTreeChildren"
+      :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
+      :span-method="spanMethod"
+      @row-click="goToRecordDetail"
+    >
+      <el-table-column prop="name" label="名称" min-width="180">
         <template #default="{ row }">
-          {{ subscriptionMap[row.primarySubscriptionId] || row.primarySubscriptionId }}
+          <span v-if="row.type === 'record'" class="record-name">
+            {{ formatTime(row.startedAt) }}
+          </span>
+          <span v-else>{{ row.name }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="主订阅 / 状态" min-width="150">
+        <template #default="{ row }">
+          <template v-if="row.type === 'pipeline'">
+            {{ subscriptionMap[row.primarySubscriptionId!] || row.primarySubscriptionId }}
+          </template>
+          <template v-else>
+            <el-tag :type="statusType(row.status)" size="small">
+              {{ statusLabel(row.status) }}
+            </el-tag>
+          </template>
         </template>
       </el-table-column>
       <el-table-column label="脚本" width="120">
         <template #default="{ row }">
-          {{ row.scriptName || '-' }}
+          <template v-if="row.type === 'pipeline'">
+            {{ row.scriptName || '-' }}
+          </template>
+          <template v-else>
+            <span class="record-error">{{ row.errorMessage || '-' }}</span>
+          </template>
         </template>
       </el-table-column>
       <el-table-column label="目标实例" min-width="150">
         <template #default="{ row }">
-          {{ instanceMap[row.targetInstanceId] || row.targetInstanceId }}
+          <template v-if="row.type === 'pipeline'">
+            {{ instanceMap[row.targetInstanceId!] || row.targetInstanceId }}
+          </template>
         </template>
       </el-table-column>
       <el-table-column label="定时" width="120">
         <template #default="{ row }">
-          {{ row.cronExpression || '-' }}
+          <template v-if="row.type === 'pipeline'">
+            {{ row.cronExpression || '-' }}
+          </template>
         </template>
       </el-table-column>
       <el-table-column label="启用" width="80" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
-            {{ row.enabled ? '是' : '否' }}
-          </el-tag>
+          <template v-if="row.type === 'pipeline'">
+            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
+              {{ row.enabled ? '是' : '否' }}
+            </el-tag>
+          </template>
         </template>
       </el-table-column>
-      <el-table-column label="最近状态" width="100" align="center">
+      <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="statusType(row.lastRunStatus)" size="small">
-            {{ statusLabel(row.lastRunStatus) }}
-          </el-tag>
+          <template v-if="row.type === 'pipeline'">
+            <el-tag :type="statusType(row.lastRunStatus)" size="small">
+              {{ statusLabel(row.lastRunStatus) }}
+            </el-tag>
+          </template>
+          <template v-else>
+            <span class="record-time">{{ formatTime(row.finishedAt) }}</span>
+          </template>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="320" fixed="right">
+      <el-table-column label="操作" width="220">
         <template #default="{ row }">
-          <el-button size="small" type="success" @click="handleExecute(row)">
-            <el-icon><CaretRight /></el-icon>
-            构建
-          </el-button>
-          <el-button size="small" @click="openEditDialog(row)">编辑</el-button>
-          <el-button size="small" type="info" @click="openHistory(row)">历史</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+          <template v-if="row.type === 'pipeline'">
+            <el-button size="small" type="success" @click.stop="handleExecute(row)">
+              <el-icon><CaretRight /></el-icon>
+              构建
+            </el-button>
+            <el-button size="small" @click.stop="openEditDialog(row)">编辑</el-button>
+            <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+          </template>
         </template>
       </el-table-column>
     </el-table>
@@ -276,39 +362,38 @@ onMounted(loadData)
         <el-button type="primary" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
-
-    <!-- 构建历史抽屉 -->
-    <el-drawer v-model="drawerVisible" :title="`构建历史: ${drawerPipelineName}`" size="600px">
-      <el-table :data="drawerRecords" v-loading="drawerLoading" border stripe>
-        <el-table-column label="开始时间" width="180">
-          <template #default="{ row }">
-            {{ row.startedAt?.replace('T', ' ').substring(0, 19) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">
-              {{ statusLabel(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="错误信息" min-width="200">
-          <template #default="{ row }">
-            {{ row.errorMessage || '-' }}
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-if="drawerRecords.length > 0" style="margin-top: 16px;">
-        <h4>最近一次执行日志</h4>
-        <el-input
-          type="textarea"
-          :rows="10"
-          :model-value="drawerRecords[0]?.logs?.join('\n') || '无日志'"
-          readonly
-          style="font-family: monospace;"
-        />
-      </div>
-      <el-empty v-if="!drawerLoading && drawerRecords.length === 0" description="暂无构建记录" />
-    </el-drawer>
   </div>
 </template>
+
+<style scoped>
+.record-name {
+  font-size: 13px;
+  color: #606266;
+}
+
+.record-time {
+  font-size: 12px;
+  color: #909399;
+}
+
+.record-error {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+:deep(.el-table__row--level-1) {
+  background-color: #fafafa;
+}
+
+:deep(.el-table__row--level-1 td) {
+  font-size: 13px;
+}
+
+:deep(.el-table__row--level-1) {
+  cursor: pointer;
+}
+</style>

@@ -142,8 +142,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscription.setLastFetchedAt(LocalDateTime.now());
         repository.save(subscription);
 
-        // 写入缓存
-        saveToCache(subscriptionId, config);
+        // 写入缓存（保存原始响应，避免解析时字段被移除）
+        saveToCache(subscriptionId, responseBody);
 
         log.info("订阅获取成功: subscriptionId={}, proxyCount={}",
                 subscriptionId, config.getProxies().size());
@@ -329,12 +329,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     // ==================== 缓存 ====================
 
     /**
-     * 将解析后的 ClashConfig 保存到本地缓存文件（YAML 格式）。
+     * 将原始响应内容保存到本地缓存文件。
      */
-    void saveToCache(String subscriptionId, ClashConfig config) {
+    void saveToCache(String subscriptionId, String content) {
         File cacheFile = getCacheFile(subscriptionId);
         try (FileWriter writer = new FileWriter(cacheFile)) {
-            yaml.dump(config.getRaw(), writer);
+            writer.write(content);
             log.debug("缓存已写入: {}", cacheFile.getAbsolutePath());
         } catch (IOException e) {
             log.warn("写入缓存失败: subscriptionId={}, error={}", subscriptionId, e.getMessage());

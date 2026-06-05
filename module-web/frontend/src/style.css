@@ -51,6 +51,7 @@ html, body {
   box-shadow: 0 1px 4px rgba(0,21,41,.08);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 20px;
   font-size: 18px;
   font-weight: 500;
@@ -63,6 +64,11 @@ html, body {
   overflow-y: auto;
 }
 
+.layout .main .content-fullscreen {
+  padding: 0;
+  overflow: hidden;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -73,4 +79,47 @@ html, body {
 .page-header h2 {
   margin: 0;
   font-size: 20px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-user {
+  font-size: 14px;
+  color: #606266;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f2f5;
+}
+
+.auth-card {
+  width: 360px;
+  padding: 32px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 21, 41, 0.12);
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.auth-card p {
+  margin: 0 0 24px;
+  color: #606266;
+  text-align: center;
+}
+
+.auth-submit {
+  width: 100%;
 }

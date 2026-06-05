@@ -40,10 +40,16 @@ build/
 
 ### Claude Code ###
 .claude/settings.local.json
+.claude/worktrees/
+.superpowers/
 
 # Data directory (keep structure, ignore content)
 data/**/*
 !data/**/.gitkeep
 
+# Module data directory (runtime data)
+module-web/data/**
+
 # Docker
 .docker/
+.worktrees

@@ -15,6 +15,16 @@ export interface BuildPipeline {
   lastRunStatus?: 'SUCCESS' | 'FAILED' | 'RUNNING'
 }
 
+export interface BuildStep {
+  name: string
+  status: 'SUCCESS' | 'FAILED' | 'SKIPPED'
+  startedAt?: string
+  finishedAt?: string
+  input?: any
+  output?: any
+  errorMessage?: string
+}
+
 export interface BuildRecord {
   id: string
   buildPipelineId: string
@@ -23,6 +33,31 @@ export interface BuildRecord {
   status: 'SUCCESS' | 'FAILED' | 'RUNNING'
   errorMessage?: string
   logs: string[]
+  steps: BuildStep[]
+}
+
+export interface TreeRow {
+  id: string
+  type: 'pipeline' | 'record'
+  name: string
+  hasChildren?: boolean
+  // pipeline 字段
+  primarySubscriptionId?: string
+  additionalSubscriptionIds?: string[]
+  scriptName?: string
+  targetInstanceId?: string
+  cronExpression?: string
+  enabled?: boolean
+  lastRunAt?: string
+  lastRunStatus?: 'SUCCESS' | 'FAILED' | 'RUNNING'
+  // record 字段
+  buildPipelineId?: string
+  startedAt?: string
+  finishedAt?: string
+  status?: 'SUCCESS' | 'FAILED' | 'RUNNING'
+  errorMessage?: string
+  logs?: string[]
+  steps?: BuildStep[]
 }
 
 export const buildPipelineApi = {

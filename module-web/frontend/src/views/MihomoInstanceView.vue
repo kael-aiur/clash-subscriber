@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { mihomoApi } from '@/api/mihomo'
 import type { MihomoInstance } from '@/api/mihomo'
 import type { ClashConfig } from '@/api/subscription'
+import MaskableText from '@/components/MaskableText.vue'
 
 const instances = ref<MihomoInstance[]>([])
 const loading = ref(false)
@@ -181,7 +182,11 @@ onMounted(loadInstances)
           </router-link>
         </template>
       </el-table-column>
-      <el-table-column prop="apiUrl" label="API 地址" min-width="250" show-overflow-tooltip />
+      <el-table-column label="API 地址" min-width="250">
+        <template #default="{ row }">
+          <MaskableText :text="row.apiUrl" :fully-masked="true" />
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="100">
         <template #default="{ row }">
           <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>

@@ -11,11 +11,28 @@ export interface Subscription {
   lastFetchedAt?: string
 }
 
+export interface ProxyNode {
+  name: string
+  type: string
+  server: string
+  port: number
+  [key: string]: unknown
+}
+
+export interface ProxyGroup {
+  name: string
+  type: string
+  proxies: string[]
+  url?: string
+  interval?: number
+  [key: string]: unknown
+}
+
 export interface ClashConfig {
   name?: string
   raw?: Record<string, unknown>
-  proxies?: unknown[]
-  proxyGroups?: Record<string, unknown>
+  proxies?: ProxyNode[]
+  proxyGroups?: Record<string, ProxyGroup>
   rules?: string[]
 }
 
