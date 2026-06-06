@@ -70,7 +70,13 @@ public class BasicAuthInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        String credentials = new String(Base64.getDecoder().decode(authHeader.substring(6)), StandardCharsets.UTF_8);
+        String credentials;
+        try {
+            credentials = new String(Base64.getDecoder().decode(authHeader.substring(6)), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "认证格式错误");
+            return false;
+        }
         String[] parts = credentials.split(":", 2);
         if (parts.length != 2) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "认证格式错误");
