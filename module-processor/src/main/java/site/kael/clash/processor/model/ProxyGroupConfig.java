@@ -15,6 +15,8 @@ public class ProxyGroupConfig {
     private List<String> nodeNames = new ArrayList<>();
     /** 按关键词匹配节点 */
     private List<String> matchKeywords = new ArrayList<>();
+    /** 排除包含指定关键词的节点（如流量信息、到期时间等） */
+    private List<String> excludeKeywords = new ArrayList<>();
     /** 是否包含所有节点 */
     private boolean includeAll;
     /** 健康检查 URL */
@@ -32,6 +34,8 @@ public class ProxyGroupConfig {
     public void setNodeNames(List<String> nodeNames) { this.nodeNames = nodeNames; }
     public List<String> getMatchKeywords() { return matchKeywords; }
     public void setMatchKeywords(List<String> matchKeywords) { this.matchKeywords = matchKeywords; }
+    public List<String> getExcludeKeywords() { return excludeKeywords; }
+    public void setExcludeKeywords(List<String> excludeKeywords) { this.excludeKeywords = excludeKeywords; }
     public boolean isIncludeAll() { return includeAll; }
     public void setIncludeAll(boolean includeAll) { this.includeAll = includeAll; }
     public String getUrl() { return url; }

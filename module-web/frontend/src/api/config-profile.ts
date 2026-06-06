@@ -19,6 +19,7 @@ export interface ProxyGroupConfig {
   type: 'select' | 'url-test' | 'fallback' | 'load-balance'
   nodeNames: string[]
   matchKeywords: string[]
+  excludeKeywords: string[]
   includeAll: boolean
   url?: string
   interval?: number

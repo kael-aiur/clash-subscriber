@@ -104,25 +104,29 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     /**
      * 解析代理组配置为 ProxyGroupProcessor 所需的格式。
      * 将 includeAll、nodeNames、matchKeywords 等配置解析为实际的节点名列表。
+     * 支持 excludeKeywords 排除包含指定关键词的节点。
      */
     private List<Map<String, Object>> resolveProxyGroups(List<ProxyGroupConfig> groupConfigs, List<ProxyNode> allNodes) {
         List<Map<String, Object>> groups = new ArrayList<>();
 
         for (ProxyGroupConfig groupConfig : groupConfigs) {
             List<String> proxies = new ArrayList<>();
+            List<String> excludeKeywords = groupConfig.getExcludeKeywords() != null ? groupConfig.getExcludeKeywords() : new ArrayList<>();
 
             if (groupConfig.isIncludeAll()) {
-                // 包含所有节点
+                // 包含所有节点，但排除匹配排除关键词的节点
                 proxies = allNodes.stream()
+                        .filter(node -> !matchAnyKeyword(node.getName(), excludeKeywords))
                         .map(ProxyNode::getName)
                         .collect(Collectors.toList());
             } else if (groupConfig.getNodeNames() != null && !groupConfig.getNodeNames().isEmpty()) {
                 // 直接选择指定节点
                 proxies = new ArrayList<>(groupConfig.getNodeNames());
             } else if (groupConfig.getMatchKeywords() != null && !groupConfig.getMatchKeywords().isEmpty()) {
-                // 按关键词匹配节点
+                // 按关键词匹配节点，同时排除匹配排除关键词的节点
                 proxies = allNodes.stream()
                         .filter(node -> matchKeywords(node.getName(), groupConfig.getMatchKeywords()))
+                        .filter(node -> !matchAnyKeyword(node.getName(), excludeKeywords))
                         .map(ProxyNode::getName)
                         .collect(Collectors.toList());
             }
@@ -149,6 +153,18 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
      * 检查节点名是否包含任意一个关键词（不区分大小写）
      */
     private boolean matchKeywords(String nodeName, List<String> keywords) {
+        String lowerName = nodeName.toLowerCase();
+        return keywords.stream()
+                .anyMatch(keyword -> lowerName.contains(keyword.toLowerCase()));
+    }
+
+    /**
+     * 检查节点名是否包含任意一个排除关键词（不区分大小写）
+     */
+    private boolean matchAnyKeyword(String nodeName, List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return false;
+        }
         String lowerName = nodeName.toLowerCase();
         return keywords.stream()
                 .anyMatch(keyword -> lowerName.contains(keyword.toLowerCase()));

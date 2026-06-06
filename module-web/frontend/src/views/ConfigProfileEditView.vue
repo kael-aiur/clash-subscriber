@@ -97,6 +97,7 @@ const addProxyGroup = () => {
     type: 'select',
     nodeNames: [],
     matchKeywords: [],
+    excludeKeywords: [],
     includeAll: true,
     url: '',
     interval: 300,
@@ -188,6 +189,7 @@ const handleSubmit = async () => {
         type: g.type,
         nodeNames: g.nodeNames,
         matchKeywords: g.matchKeywords,
+        excludeKeywords: g.excludeKeywords,
         includeAll: g.mode === 'all',
         url: g.url,
         interval: g.interval,
@@ -313,6 +315,20 @@ const handleCancel = () => {
                 allow-create
                 default-first-option
                 placeholder="输入节点名称后回车"
+                style="width: 100%"
+              />
+            </el-col>
+          </el-row>
+          <el-row :gutter="10" style="margin-top: 10px">
+            <el-col :span="24">
+              <div class="exclude-keywords-label">排除关键词（包含这些关键词的节点将被排除）：</div>
+              <el-select
+                v-model="group.excludeKeywords"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                placeholder="输入关键词后回车，如：剩余、到期、流量、余额"
                 style="width: 100%"
               />
             </el-col>
@@ -553,5 +569,10 @@ const handleCancel = () => {
   margin-left: 10px;
   font-size: 12px;
   color: #909399;
+}
+.exclude-keywords-label {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 5px;
 }
 </style>
