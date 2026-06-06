@@ -43,7 +43,7 @@ public class ConfigProfileController {
     /**
      * 根据 ID 查询配置组合
      */
-    @GetMapping("/{id}")
+    @GetMapping("/detail/{id}")
     public ResponseEntity<ConfigProfile> getById(@PathVariable String id) {
         return configProfileRepository.findById(id)
                 .map(ResponseEntity::ok)
