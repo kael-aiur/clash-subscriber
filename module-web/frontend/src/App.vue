@@ -15,6 +15,7 @@ const menuItems = [
   { path: '/scripts', label: '脚本管理', icon: 'Document' },
   { path: '/node-tags', label: '标签管理', icon: 'PriceTag' },
   { path: '/rule-groups', label: '规则组管理', icon: 'List' },
+  { path: '/config-profiles', label: '配置管理', icon: 'Files' },
 ]
 
 const isAuthPage = computed(() => route.path === '/auth')
