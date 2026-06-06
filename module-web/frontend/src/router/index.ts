@@ -75,6 +75,17 @@ const router = createRouter({
       component: () => import('@/views/RuleGroupDetailView.vue'),
       meta: { title: '规则组详情' },
     },
+    {
+      path: '/config-profiles',
+      name: 'config-profiles',
+      component: () => import('@/views/ConfigProfileListView.vue'),
+    },
+    {
+      path: '/config-profiles/:id',
+      name: 'config-profile-edit',
+      component: () => import('@/views/ConfigProfileEditView.vue'),
+      meta: { title: '编辑配置' },
+    },
   ],
 })
 
