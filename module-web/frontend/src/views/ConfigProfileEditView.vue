@@ -3,11 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { configProfileApi } from '@/api/config-profile'
-import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig, RuleGroupRef } from '@/api/config-profile'
+import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig } from '@/api/config-profile'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription } from '@/api/subscription'
 import { ruleGroupApi } from '@/api/ruleGroup'
-import type { RuleGroup, RuleProxyObject } from '@/api/ruleGroup'
+import type { RuleGroup } from '@/api/ruleGroup'
 
 const router = useRouter()
 const route = useRoute()
