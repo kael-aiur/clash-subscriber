@@ -9,5 +9,7 @@ public interface BuildPipelineRepository {
     BuildPipeline save(BuildPipeline pipeline);
     Optional<BuildPipeline> findById(String id);
     List<BuildPipeline> findAll();
+    List<BuildPipeline> findByConfigType(String configType);
+    List<BuildPipeline> findByConfigProfileId(String configProfileId);
     void deleteById(String id);
 }

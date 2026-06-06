@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class JsonFileBuildPipelineRepository implements BuildPipelineRepository {
@@ -79,6 +80,20 @@ public class JsonFileBuildPipelineRepository implements BuildPipelineRepository 
             throw new RuntimeException("遍历构建流程配置目录失败", e);
         }
         return pipelines;
+    }
+
+    @Override
+    public List<BuildPipeline> findByConfigType(String configType) {
+        return findAll().stream()
+                .filter(p -> configType.equals(p.getConfigType()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BuildPipeline> findByConfigProfileId(String configProfileId) {
+        return findAll().stream()
+                .filter(p -> configProfileId.equals(p.getConfigProfileId()))
+                .collect(Collectors.toList());
     }
 
     @Override
