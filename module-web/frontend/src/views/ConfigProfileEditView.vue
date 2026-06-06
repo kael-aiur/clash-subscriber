@@ -212,8 +212,9 @@ const handleSubmit = async () => {
       ElMessage.success('创建成功')
     }
     router.push('/config-profiles')
-  } catch {
-    ElMessage.error('保存失败')
+  } catch (error: any) {
+    const message = error.response?.data?.error || '保存失败'
+    ElMessage.error(message)
   } finally {
     saving.value = false
   }
