@@ -56,7 +56,7 @@ export const configProfileApi = {
   },
 
   update(id: string, data: Partial<ConfigProfile>) {
-    return api.put<ConfigProfile>(`/config/${id}`, data)
+    return api.put<ConfigProfile>(`/config/update/${id}`, data)
   },
 
   delete(id: string) {

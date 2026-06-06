@@ -73,7 +73,7 @@ public class ConfigProfileController {
      * <p>
      * 名称与其他配置冲突时返回 409 Conflict。
      */
-    @PutMapping("/{id}")
+    @PutMapping("/update/{id}")
     public ResponseEntity<?> update(@PathVariable String id, @RequestBody ConfigProfile profile) {
         ConfigProfile existing = configProfileRepository.findById(id).orElse(null);
         if (existing == null) {
