@@ -29,7 +29,7 @@ public class BuildPipelineController {
 
     @PostMapping
     public ResponseEntity<BuildPipeline> create(@RequestBody BuildPipeline pipeline) {
-        log.info("创建构建流程: name={}", pipeline.getName());
+        log.info("创建构建流程: name={}, configType={}", pipeline.getName(), pipeline.getConfigType());
         return ResponseEntity.ok(buildPipelineService.create(pipeline));
     }
 
@@ -40,7 +40,7 @@ public class BuildPipelineController {
 
     @PutMapping("/{id}")
     public ResponseEntity<BuildPipeline> update(@PathVariable String id, @RequestBody BuildPipeline pipeline) {
-        log.info("更新构建流程: id={}", id);
+        log.info("更新构建流程: id={}, configType={}", id, pipeline.getConfigType());
         pipeline.setId(id);
         return ResponseEntity.ok(buildPipelineService.update(pipeline));
     }
