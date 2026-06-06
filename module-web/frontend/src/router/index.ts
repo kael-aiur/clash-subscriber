@@ -64,6 +64,17 @@ const router = createRouter({
       name: 'node-tags',
       component: () => import('@/views/NodeTagManageView.vue'),
     },
+    {
+      path: '/rule-groups',
+      name: 'rule-groups',
+      component: () => import('@/views/RuleGroupListView.vue'),
+    },
+    {
+      path: '/rule-groups/:id',
+      name: 'rule-group-detail',
+      component: () => import('@/views/RuleGroupDetailView.vue'),
+      meta: { title: '规则组详情' },
+    },
   ],
 })
 

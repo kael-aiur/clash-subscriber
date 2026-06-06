@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription, ClashConfig, ProxyNode, ProxyGroup } from '@/api/subscription'
 import { nodeTagApi } from '@/api/nodeTag'
 import type { NodeTag } from '@/api/nodeTag'
+import { ruleGroupApi } from '@/api/ruleGroup'
 import MaskableText from '@/components/MaskableText.vue'
 import TreeNode from '@/components/TreeNode.vue'
 
+const router = useRouter()
 const subscriptions = ref<Subscription[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -487,6 +490,16 @@ const loadNodeTags = async () => {
   }
 }
 
+const handleExtractRuleGroup = async (sub: Subscription) => {
+  try {
+    const res = await ruleGroupApi.extract(sub.id)
+    ElMessage.success('提取成功')
+    router.push({ name: 'rule-group-detail', params: { id: res.data.id } })
+  } catch {
+    ElMessage.error('提取失败')
+  }
+}
+
 onMounted(() => {
   loadSubscriptions()
   loadNodeTags()
@@ -515,13 +528,14 @@ onMounted(() => {
           {{ formatDate(row.lastFetchedAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="340" fixed="right">
+      <el-table-column label="操作" width="380" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="success" @click="handleFetch(row)">
             <el-icon><Refresh /></el-icon>
             获取
           </el-button>
           <el-button size="small" type="primary" @click="openDetail(row)">详情</el-button>
+          <el-button size="small" type="warning" @click="handleExtractRuleGroup(row)">提取规则组</el-button>
           <el-button size="small" @click="openDialog(row)">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>

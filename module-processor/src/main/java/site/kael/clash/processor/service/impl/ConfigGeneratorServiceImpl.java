@@ -6,6 +6,9 @@ import org.springframework.stereotype.Service;
 import site.kael.clash.common.model.ClashConfig;
 import site.kael.clash.common.model.ProxyNode;
 import site.kael.clash.common.util.YamlUtil;
+import site.kael.clash.processor.api.ProcessingContext;
+import site.kael.clash.processor.builtin.NodeMergeProcessor;
+import site.kael.clash.processor.builtin.ProxyGroupProcessor;
 import site.kael.clash.processor.model.*;
 import site.kael.clash.processor.repository.ConfigProfileRepository;
 import site.kael.clash.processor.repository.RuleGroupRepository;
@@ -26,31 +29,47 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     private final ConfigProfileRepository configProfileRepository;
     private final SubscriptionService subscriptionService;
     private final RuleGroupRepository ruleGroupRepository;
+    private final NodeMergeProcessor nodeMergeProcessor;
+    private final ProxyGroupProcessor proxyGroupProcessor;
 
     public ConfigGeneratorServiceImpl(
             ConfigProfileRepository configProfileRepository,
             SubscriptionService subscriptionService,
-            RuleGroupRepository ruleGroupRepository) {
+            RuleGroupRepository ruleGroupRepository,
+            NodeMergeProcessor nodeMergeProcessor,
+            ProxyGroupProcessor proxyGroupProcessor) {
         this.configProfileRepository = configProfileRepository;
         this.subscriptionService = subscriptionService;
         this.ruleGroupRepository = ruleGroupRepository;
+        this.nodeMergeProcessor = nodeMergeProcessor;
+        this.proxyGroupProcessor = proxyGroupProcessor;
     }
 
     @Override
     public String generate(ConfigProfile profile) {
         log.info("生成配置: name={}", profile.getName());
 
-        // 1. 合并订阅源节点
-        List<ProxyNode> allNodes = mergeSubscriptions(profile.getSubscriptionIds());
+        // 1. 获取订阅源配置
+        List<ClashConfig> subscriptionConfigs = fetchSubscriptions(profile.getSubscriptionIds());
 
-        // 2. 构建代理组
-        Map<String, Object> proxyGroups = buildProxyGroups(profile.getProxyGroups(), allNodes);
+        // 2. 使用 NodeMergeProcessor 合并节点
+        ProcessingContext mergeContext = new ProcessingContext();
+        mergeContext.setVariable("mergeConfigs", subscriptionConfigs);
+        ClashConfig mergedConfig = nodeMergeProcessor.process(new ClashConfig(profile.getName()), mergeContext);
 
-        // 3. 构建规则
+        // 3. 解析代理组配置并使用 ProxyGroupProcessor 构建代理组
+        List<Map<String, Object>> resolvedGroups = resolveProxyGroups(profile.getProxyGroups(), mergedConfig.getProxies());
+        ProcessingContext groupContext = new ProcessingContext();
+        Map<String, Object> proxyGroupConfig = new HashMap<>();
+        proxyGroupConfig.put("groups", resolvedGroups);
+        groupContext.setVariable("proxyGroupConfig", proxyGroupConfig);
+        ClashConfig finalConfig = proxyGroupProcessor.process(mergedConfig, groupContext);
+
+        // 4. 构建规则
         List<String> rules = buildRules(profile.getRuleGroups());
 
-        // 4. 构建完整配置并转为 YAML
-        return toYaml(profile, allNodes, proxyGroups, rules);
+        // 5. 构建完整配置并转为 YAML
+        return toYaml(profile, finalConfig.getProxies(), finalConfig.getProxyGroups(), rules);
     }
 
     @Override
@@ -61,29 +80,31 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     }
 
     /**
-     * 合并多个订阅源的节点
+     * 获取多个订阅源的配置
      */
-    private List<ProxyNode> mergeSubscriptions(List<String> subscriptionIds) {
-        List<ProxyNode> allNodes = new ArrayList<>();
+    private List<ClashConfig> fetchSubscriptions(List<String> subscriptionIds) {
+        List<ClashConfig> configs = new ArrayList<>();
         for (String subscriptionId : subscriptionIds) {
             try {
                 ClashConfig config = subscriptionService.fetch(subscriptionId);
-                if (config != null && config.getProxies() != null) {
-                    allNodes.addAll(config.getProxies());
-                    log.info("合并订阅源节点: subscriptionId={}, nodes={}", subscriptionId, config.getProxies().size());
+                if (config != null) {
+                    configs.add(config);
+                    log.info("获取订阅源配置: subscriptionId={}, nodes={}", subscriptionId,
+                            config.getProxies() != null ? config.getProxies().size() : 0);
                 }
             } catch (Exception e) {
                 log.error("获取订阅源失败: subscriptionId={}", subscriptionId, e);
             }
         }
-        return allNodes;
+        return configs;
     }
 
     /**
-     * 根据代理组配置构建代理组数据，支持包含全部节点、直接指定节点名和关键词匹配三种方式。
+     * 解析代理组配置为 ProxyGroupProcessor 所需的格式。
+     * 将 includeAll、nodeNames、matchKeywords 等配置解析为实际的节点名列表。
      */
-    private Map<String, Object> buildProxyGroups(List<ProxyGroupConfig> groupConfigs, List<ProxyNode> allNodes) {
-        Map<String, Object> proxyGroups = new LinkedHashMap<>();
+    private List<Map<String, Object>> resolveProxyGroups(List<ProxyGroupConfig> groupConfigs, List<ProxyNode> allNodes) {
+        List<Map<String, Object>> groups = new ArrayList<>();
 
         for (ProxyGroupConfig groupConfig : groupConfigs) {
             List<String> proxies = new ArrayList<>();
@@ -105,6 +126,7 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
             }
 
             Map<String, Object> groupData = new LinkedHashMap<>();
+            groupData.put("name", groupConfig.getName());
             groupData.put("type", groupConfig.getType());
             groupData.put("proxies", proxies);
 
@@ -115,10 +137,10 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
                 groupData.put("interval", groupConfig.getInterval());
             }
 
-            proxyGroups.put(groupConfig.getName(), groupData);
+            groups.add(groupData);
         }
 
-        return proxyGroups;
+        return groups;
     }
 
     /**
