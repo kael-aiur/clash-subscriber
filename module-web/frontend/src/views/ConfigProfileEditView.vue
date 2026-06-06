@@ -304,6 +304,9 @@ const handleCancel = () => {
           <el-form-item label="SOCKS5 端口">
             <el-input-number v-model="form.basicConfig.socksPort" :min="1" :max="65535" />
           </el-form-item>
+          <el-form-item label="重定向端口">
+            <el-input-number v-model="form.basicConfig.redirPort" :min="1" :max="65535" />
+          </el-form-item>
           <el-form-item label="允许局域网">
             <el-switch v-model="form.basicConfig.allowLan" />
           </el-form-item>
