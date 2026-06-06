@@ -27,6 +27,7 @@ export interface ProxyGroupConfig {
 export interface RuleGroupRef {
   ruleGroupId: string
   priority: number
+  proxyObjectMappings?: Record<string, string>
 }
 
 export interface ClashBasicConfig {

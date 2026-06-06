@@ -3,11 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { configProfileApi } from '@/api/config-profile'
-import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig } from '@/api/config-profile'
+import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig, RuleGroupRef } from '@/api/config-profile'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription } from '@/api/subscription'
 import { ruleGroupApi } from '@/api/ruleGroup'
-import type { RuleGroup } from '@/api/ruleGroup'
+import type { RuleGroup, RuleProxyObject } from '@/api/ruleGroup'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,12 +16,19 @@ const isEdit = computed(() => route.params.id !== 'new')
 const showBasicConfig = ref(false)
 const saving = ref(false)
 
+// 规则组引用，包含代理对象映射
+interface RuleGroupRefWithMapping {
+  ruleGroupId: string
+  priority: number
+  proxyObjectMappings: Record<string, string>
+}
+
 const form = ref<{
   name: string
   description: string
   subscriptionIds: string[]
   proxyGroups: (ProxyGroupConfig & { mode: string })[]
-  ruleGroupIds: string[]
+  ruleGroups: RuleGroupRefWithMapping[]
   basicConfig: ClashBasicConfig
   authUsername: string
   authPassword: string
@@ -30,7 +37,7 @@ const form = ref<{
   description: '',
   subscriptionIds: [],
   proxyGroups: [],
-  ruleGroupIds: [],
+  ruleGroups: [],
   basicConfig: {
     mixedPort: 7890,
     port: 7891,
@@ -69,7 +76,11 @@ onMounted(async () => {
           ...g,
           mode: g.includeAll ? 'all' : (g.matchKeywords?.length > 0 ? 'keyword' : 'select'),
         })),
-        ruleGroupIds: (data.ruleGroups || []).map(rg => rg.ruleGroupId),
+        ruleGroups: (data.ruleGroups || []).map(rg => ({
+          ruleGroupId: rg.ruleGroupId,
+          priority: rg.priority,
+          proxyObjectMappings: rg.proxyObjectMappings || {},
+        })),
         basicConfig: data.basicConfig || form.value.basicConfig,
         authUsername: data.authUsername || '',
         authPassword: data.authPassword || '',
@@ -97,6 +108,69 @@ const removeProxyGroup = (index: number) => {
   form.value.proxyGroups.splice(index, 1)
 }
 
+// 规则组相关方法
+const availableRuleGroups = computed(() => {
+  const selectedIds = new Set(form.value.ruleGroups.map(rg => rg.ruleGroupId))
+  return ruleGroups.value.filter(rg => !selectedIds.has(rg.id))
+})
+
+const addRuleGroup = (ruleGroupId: string) => {
+  const ruleGroup = ruleGroups.value.find(rg => rg.id === ruleGroupId)
+  if (!ruleGroup) return
+
+  // 初始化代理对象映射，默认使用 sourceName
+  const proxyObjectMappings: Record<string, string> = {}
+  if (ruleGroup.proxyObjects) {
+    for (const obj of ruleGroup.proxyObjects) {
+      proxyObjectMappings[obj.id] = obj.sourceName
+    }
+  }
+
+  form.value.ruleGroups.push({
+    ruleGroupId,
+    priority: form.value.ruleGroups.length,
+    proxyObjectMappings,
+  })
+}
+
+const removeRuleGroup = (index: number) => {
+  form.value.ruleGroups.splice(index, 1)
+  // 重新设置优先级
+  form.value.ruleGroups.forEach((rg, i) => {
+    rg.priority = i
+  })
+}
+
+const moveRuleGroupUp = (index: number) => {
+  if (index <= 0) return
+  const temp = form.value.ruleGroups[index]
+  form.value.ruleGroups[index] = form.value.ruleGroups[index - 1]
+  form.value.ruleGroups[index - 1] = temp
+  // 重新设置优先级
+  form.value.ruleGroups.forEach((rg, i) => {
+    rg.priority = i
+  })
+}
+
+const moveRuleGroupDown = (index: number) => {
+  if (index >= form.value.ruleGroups.length - 1) return
+  const temp = form.value.ruleGroups[index]
+  form.value.ruleGroups[index] = form.value.ruleGroups[index + 1]
+  form.value.ruleGroups[index + 1] = temp
+  // 重新设置优先级
+  form.value.ruleGroups.forEach((rg, i) => {
+    rg.priority = i
+  })
+}
+
+const getRuleGroupById = (id: string): RuleGroup | undefined => {
+  return ruleGroups.value.find(rg => rg.id === id)
+}
+
+const getProxyGroupNames = (): string[] => {
+  return form.value.proxyGroups.map(g => g.name).filter(name => name)
+}
+
 const handleSubmit = async () => {
   if (!form.value.name) {
     ElMessage.warning('请填写配置名称')
@@ -118,9 +192,10 @@ const handleSubmit = async () => {
         url: g.url,
         interval: g.interval,
       })),
-      ruleGroups: form.value.ruleGroupIds.map((id, index) => ({
-        ruleGroupId: id,
-        priority: index,
+      ruleGroups: form.value.ruleGroups.map(rg => ({
+        ruleGroupId: rg.ruleGroupId,
+        priority: rg.priority,
+        proxyObjectMappings: rg.proxyObjectMappings,
       })),
       basicConfig: form.value.basicConfig,
       authUsername: form.value.authUsername || undefined,
@@ -257,18 +332,73 @@ const handleCancel = () => {
       <!-- 规则组配置 -->
       <el-card class="section">
         <template #header>
-          <span>规则组配置</span>
+          <div class="card-header">
+            <span>规则组配置</span>
+            <el-select
+              v-if="availableRuleGroups.length > 0"
+              placeholder="添加规则组"
+              style="width: 300px"
+              @change="addRuleGroup"
+              value=""
+            >
+              <el-option
+                v-for="rg in availableRuleGroups"
+                :key="rg.id"
+                :label="rg.name"
+                :value="rg.id"
+              />
+            </el-select>
+          </div>
         </template>
-        <el-form-item label="规则组">
-          <el-select v-model="form.ruleGroupIds" multiple placeholder="请选择规则组" style="width: 100%">
-            <el-option
-              v-for="rg in ruleGroups"
-              :key="rg.id"
-              :label="rg.name"
-              :value="rg.id"
-            />
-          </el-select>
-        </el-form-item>
+
+        <div v-if="form.ruleGroups.length === 0" class="empty-tip">
+          暂无规则组，请从上方下拉框添加
+        </div>
+
+        <div v-for="(rgRef, index) in form.ruleGroups" :key="rgRef.ruleGroupId" class="rule-group-item">
+          <div class="rule-group-header">
+            <div class="rule-group-info">
+              <span class="rule-group-priority">优先级 {{ index + 1 }}</span>
+              <span class="rule-group-name">{{ getRuleGroupById(rgRef.ruleGroupId)?.name || '未知规则组' }}</span>
+              <el-tag size="small" type="info">{{ getRuleGroupById(rgRef.ruleGroupId)?.rules?.length || 0 }} 条规则</el-tag>
+            </div>
+            <div class="rule-group-actions">
+              <el-button size="small" :disabled="index === 0" @click="moveRuleGroupUp(index)">
+                <el-icon><Top /></el-icon>
+              </el-button>
+              <el-button size="small" :disabled="index === form.ruleGroups.length - 1" @click="moveRuleGroupDown(index)">
+                <el-icon><Bottom /></el-icon>
+              </el-button>
+              <el-button size="small" type="danger" @click="removeRuleGroup(index)">删除</el-button>
+            </div>
+          </div>
+
+          <!-- 代理对象映射配置 -->
+          <div v-if="getRuleGroupById(rgRef.ruleGroupId)?.proxyObjects?.length" class="proxy-object-mappings">
+            <div class="mapping-title">代理对象映射：</div>
+            <div
+              v-for="proxyObj in getRuleGroupById(rgRef.ruleGroupId)?.proxyObjects"
+              :key="proxyObj.id"
+              class="mapping-item"
+            >
+              <span class="mapping-source">{{ proxyObj.sourceName }}</span>
+              <el-icon><Right /></el-icon>
+              <el-select
+                v-model="rgRef.proxyObjectMappings[proxyObj.id]"
+                placeholder="选择代理组"
+                style="width: 200px"
+                filterable
+              >
+                <el-option
+                  v-for="groupName in getProxyGroupNames()"
+                  :key="groupName"
+                  :label="groupName"
+                  :value="groupName"
+                />
+              </el-select>
+            </div>
+          </div>
+        </div>
       </el-card>
 
       <!-- 认证配置 -->
@@ -360,5 +490,60 @@ const handleCancel = () => {
   padding: 10px;
   border: 1px solid #eee;
   border-radius: 4px;
+}
+.empty-tip {
+  text-align: center;
+  color: #909399;
+  padding: 20px;
+}
+.rule-group-item {
+  margin-bottom: 15px;
+  padding: 15px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background-color: #fafafa;
+}
+.rule-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.rule-group-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rule-group-priority {
+  font-weight: bold;
+  color: #409eff;
+}
+.rule-group-name {
+  font-size: 14px;
+}
+.rule-group-actions {
+  display: flex;
+  gap: 5px;
+}
+.proxy-object-mappings {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #dcdfe6;
+}
+.mapping-title {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 8px;
+}
+.mapping-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.mapping-source {
+  min-width: 120px;
+  font-size: 13px;
+  color: #303133;
 }
 </style>

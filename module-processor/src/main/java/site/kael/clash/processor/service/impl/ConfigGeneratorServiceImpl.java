@@ -157,6 +157,7 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     /**
      * 按优先级排序后，从规则组中收集所有规则。
      * 规则中的 {{id}} 模板会被替换为实际的代理组名称。
+     * 优先使用 RuleGroupRef 中的代理对象映射，如果未配置则使用规则组中的 sourceName。
      */
     private List<String> buildRules(List<RuleGroupRef> ruleGroupRefs) {
         List<String> rules = new ArrayList<>();
@@ -172,10 +173,15 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
                         .ifPresent(ruleGroup -> {
                             if (ruleGroup.getRules() != null) {
                                 // 构建 ID -> 名称的映射
+                                // 优先使用 RuleGroupRef 中的代理对象映射
                                 Map<String, String> idToNameMap = new HashMap<>();
+                                if (ref.getProxyObjectMappings() != null && !ref.getProxyObjectMappings().isEmpty()) {
+                                    idToNameMap.putAll(ref.getProxyObjectMappings());
+                                }
+                                // 如果映射不完整，使用规则组中的 sourceName 作为默认值
                                 if (ruleGroup.getProxyObjects() != null) {
                                     for (var proxyObj : ruleGroup.getProxyObjects()) {
-                                        idToNameMap.put(proxyObj.getId(), proxyObj.getSourceName());
+                                        idToNameMap.putIfAbsent(proxyObj.getId(), proxyObj.getSourceName());
                                     }
                                 }
                                 // 替换规则中的 {{id}} 模板
