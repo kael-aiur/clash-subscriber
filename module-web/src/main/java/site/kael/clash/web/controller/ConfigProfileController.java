@@ -109,7 +109,7 @@ public class ConfigProfileController {
     /**
      * 根据配置名称获取完整的 Clash YAML 配置
      */
-    @GetMapping("/{name}/clash")
+    @GetMapping("/{name}")
     public ResponseEntity<String> getClashConfig(@PathVariable String name) {
         try {
             String yaml = configGeneratorService.generateByName(name);
