@@ -16,6 +16,8 @@ import site.kael.clash.processor.service.ConfigGeneratorService;
 import site.kael.clash.subscription.service.SubscriptionService;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -154,6 +156,7 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
 
     /**
      * 按优先级排序后，从规则组中收集所有规则。
+     * 规则中的 {{id}} 模板会被替换为实际的代理组名称。
      */
     private List<String> buildRules(List<RuleGroupRef> ruleGroupRefs) {
         List<String> rules = new ArrayList<>();
@@ -168,7 +171,17 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
                 ruleGroupRepository.findById(ref.getRuleGroupId())
                         .ifPresent(ruleGroup -> {
                             if (ruleGroup.getRules() != null) {
-                                rules.addAll(ruleGroup.getRules());
+                                // 构建 ID -> 名称的映射
+                                Map<String, String> idToNameMap = new HashMap<>();
+                                if (ruleGroup.getProxyObjects() != null) {
+                                    for (var proxyObj : ruleGroup.getProxyObjects()) {
+                                        idToNameMap.put(proxyObj.getId(), proxyObj.getSourceName());
+                                    }
+                                }
+                                // 替换规则中的 {{id}} 模板
+                                for (String rule : ruleGroup.getRules()) {
+                                    rules.add(replaceTemplate(rule, idToNameMap));
+                                }
                             }
                         });
             } catch (Exception e) {
@@ -177,6 +190,26 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
         }
 
         return rules;
+    }
+
+    /**
+     * 替换规则中的 {{id}} 模板为实际的代理组名称
+     */
+    private String replaceTemplate(String rule, Map<String, String> idToNameMap) {
+        Pattern pattern = Pattern.compile("\\{\\{([^}]+)\\}\\}");
+        Matcher matcher = pattern.matcher(rule);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String id = matcher.group(1);
+            String name = idToNameMap.get(id);
+            if (name != null) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(name));
+            } else {
+                log.warn("未找到代理组 ID 对应的名称: {}", id);
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /**
