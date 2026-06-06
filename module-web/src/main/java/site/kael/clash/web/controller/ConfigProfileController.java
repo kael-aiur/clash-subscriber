@@ -62,6 +62,12 @@ public class ConfigProfileController {
             return ResponseEntity.status(409).body("{\"error\": \"配置名称已存在\"}");
         }
 
+        // 验证代理对象映射
+        String validationError = validateProxyObjectMappings(profile);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body("{\"error\": \"" + validationError + "\"}");
+        }
+
         profile.setId(UUID.randomUUID().toString());
         ConfigProfile created = configProfileRepository.save(profile);
         log.info("创建配置: id={}, name={}", created.getId(), created.getName());
@@ -86,11 +92,48 @@ public class ConfigProfileController {
             return ResponseEntity.status(409).body("{\"error\": \"配置名称已存在\"}");
         }
 
+        // 验证代理对象映射
+        String validationError = validateProxyObjectMappings(profile);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body("{\"error\": \"" + validationError + "\"}");
+        }
+
         profile.setId(id);
         profile.setCreatedAt(existing.getCreatedAt());
         ConfigProfile updated = configProfileRepository.save(profile);
         log.info("更新配置: id={}, name={}", updated.getId(), updated.getName());
         return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * 验证代理对象映射中的代理组名称是否存在于配置的代理组列表中
+     */
+    private String validateProxyObjectMappings(ConfigProfile profile) {
+        // 收集所有代理组名称
+        java.util.Set<String> proxyGroupNames = new java.util.HashSet<>();
+        if (profile.getProxyGroups() != null) {
+            for (var group : profile.getProxyGroups()) {
+                if (group.getName() != null && !group.getName().isEmpty()) {
+                    proxyGroupNames.add(group.getName());
+                }
+            }
+        }
+
+        // 检查规则组中的代理对象映射
+        if (profile.getRuleGroups() != null) {
+            for (var ruleGroupRef : profile.getRuleGroups()) {
+                if (ruleGroupRef.getProxyObjectMappings() != null) {
+                    for (var entry : ruleGroupRef.getProxyObjectMappings().entrySet()) {
+                        String mappedName = entry.getValue();
+                        if (mappedName != null && !mappedName.isEmpty() && !proxyGroupNames.contains(mappedName)) {
+                            return "代理对象映射中的代理组名称\"" + mappedName + "\"不存在于配置的代理组列表中";
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
