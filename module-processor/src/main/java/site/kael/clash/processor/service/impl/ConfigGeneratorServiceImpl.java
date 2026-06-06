@@ -75,7 +75,7 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     @Override
     public String generateByName(String name) {
         ConfigProfile profile = configProfileRepository.findByName(name)
-                .orElseThrow(() -> new RuntimeException("配置不存在: " + name));
+                .orElseThrow(() -> new IllegalArgumentException("配置不存在: " + name));
         return generate(profile);
     }
 
@@ -209,7 +209,9 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
             proxyMap.put("type", node.getType());
             proxyMap.put("server", node.getServer());
             proxyMap.put("port", node.getPort());
-            proxyMap.putAll(node.getExtra());
+            if (node.getExtra() != null) {
+                proxyMap.putAll(node.getExtra());
+            }
             proxyList.add(proxyMap);
         }
         yamlMap.put("proxies", proxyList);
