@@ -114,7 +114,7 @@ public class ConfigProfileController {
         try {
             String yaml = configGeneratorService.generateByName(name);
             return ResponseEntity.ok()
-                    .header("Content-Type", "text/yaml")
+                    .header("Content-Type", "text/yaml; charset=utf-8")
                     .body(yaml);
         } catch (Exception e) {
             log.error("生成配置失败: name={}", name, e);
