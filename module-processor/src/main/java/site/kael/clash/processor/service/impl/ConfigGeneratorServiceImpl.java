@@ -229,9 +229,16 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
         // 基础配置
         ClashBasicConfig basicConfig = profile.getBasicConfig();
         yamlMap.put("mixed-port", basicConfig.getMixedPort());
-        yamlMap.put("port", basicConfig.getPort());
-        yamlMap.put("socks-port", basicConfig.getSocksPort());
-        yamlMap.put("redir-port", basicConfig.getRedirPort());
+        // 端口为 0 表示不启用
+        if (basicConfig.getPort() > 0) {
+            yamlMap.put("port", basicConfig.getPort());
+        }
+        if (basicConfig.getSocksPort() > 0) {
+            yamlMap.put("socks-port", basicConfig.getSocksPort());
+        }
+        if (basicConfig.getRedirPort() > 0) {
+            yamlMap.put("redir-port", basicConfig.getRedirPort());
+        }
         yamlMap.put("allow-lan", basicConfig.isAllowLan());
         yamlMap.put("mode", basicConfig.getMode());
         yamlMap.put("log-level", basicConfig.getLogLevel());

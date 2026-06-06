@@ -429,13 +429,16 @@ const handleCancel = () => {
             <el-input-number v-model="form.basicConfig.mixedPort" :min="1" :max="65535" />
           </el-form-item>
           <el-form-item label="HTTP 端口">
-            <el-input-number v-model="form.basicConfig.port" :min="1" :max="65535" />
+            <el-input-number v-model="form.basicConfig.port" :min="0" :max="65535" />
+            <span class="port-tip">设置为 0 表示不启用</span>
           </el-form-item>
           <el-form-item label="SOCKS5 端口">
-            <el-input-number v-model="form.basicConfig.socksPort" :min="1" :max="65535" />
+            <el-input-number v-model="form.basicConfig.socksPort" :min="0" :max="65535" />
+            <span class="port-tip">设置为 0 表示不启用</span>
           </el-form-item>
           <el-form-item label="重定向端口">
-            <el-input-number v-model="form.basicConfig.redirPort" :min="1" :max="65535" />
+            <el-input-number v-model="form.basicConfig.redirPort" :min="0" :max="65535" />
+            <span class="port-tip">设置为 0 表示不启用</span>
           </el-form-item>
           <el-form-item label="允许局域网">
             <el-switch v-model="form.basicConfig.allowLan" />
@@ -545,5 +548,10 @@ const handleCancel = () => {
   min-width: 120px;
   font-size: 13px;
   color: #303133;
+}
+.port-tip {
+  margin-left: 10px;
+  font-size: 12px;
+  color: #909399;
 }
 </style>
