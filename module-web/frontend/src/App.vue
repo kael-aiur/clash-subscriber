@@ -9,11 +9,25 @@ const router = useRouter()
 const route = useRoute()
 
 const menuItems = [
-  { path: '/subscriptions', label: '订阅源管理', icon: 'Link' },
-  { path: '/mihomo-instances', label: 'Mihomo 实例', icon: 'Monitor' },
-  { path: '/build-pipelines', label: '构建流程', icon: 'SetUp' },
-  { path: '/scripts', label: '脚本管理', icon: 'Document' },
-  { path: '/node-tags', label: '标签管理', icon: 'PriceTag' },
+  {
+    path: '/subscriptions',
+    label: '订阅管理',
+    icon: 'Link',
+    children: [
+      { path: '/node-tags', label: '标签管理', icon: 'PriceTag' },
+    ],
+  },
+  {
+    path: '/config-profiles',
+    label: '配置管理',
+    icon: 'Files',
+    children: [
+      { path: '/scripts', label: '脚本管理', icon: 'Document' },
+      { path: '/rule-groups', label: '规则管理', icon: 'List' },
+    ],
+  },
+  { path: '/build-pipelines', label: '配置构建', icon: 'SetUp' },
+  { path: '/mihomo-instances', label: '实例管理', icon: 'Monitor' },
 ]
 
 const isAuthPage = computed(() => route.path === '/auth')
@@ -23,8 +37,19 @@ const currentTitle = computed(() => {
   if (route.meta.title) {
     return route.meta.title as string
   }
-  const item = menuItems.find(m => m.path === route.path)
-  return item?.label || 'Clash 订阅管理中心'
+  // 查找当前路由对应的菜单项（包括子菜单）
+  for (const item of menuItems) {
+    if (item.path === route.path) {
+      return item.label
+    }
+    if (item.children) {
+      const child = item.children.find(c => c.path === route.path)
+      if (child) {
+        return child.label
+      }
+    }
+  }
+  return 'Clash 订阅管理中心'
 })
 
 const handleMenuSelect = (path: string) => {
@@ -56,10 +81,24 @@ const handleLogout = async () => {
         active-text-color="#409eff"
         @select="handleMenuSelect"
       >
-        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
-          <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
-        </el-menu-item>
+        <template v-for="item in menuItems" :key="item.path">
+          <!-- 有子菜单的项 -->
+          <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.path">
+            <template #title>
+              <el-icon><component :is="item.icon" /></el-icon>
+              <span class="sub-menu-title" @mousedown.prevent @click.stop="handleMenuSelect(item.path)">{{ item.label }}</span>
+            </template>
+            <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
+              <el-icon><component :is="child.icon" /></el-icon>
+              <span>{{ child.label }}</span>
+            </el-menu-item>
+          </el-sub-menu>
+          <!-- 没有子菜单的项 -->
+          <el-menu-item v-else :index="item.path">
+            <el-icon><component :is="item.icon" /></el-icon>
+            <span>{{ item.label }}</span>
+          </el-menu-item>
+        </template>
       </el-menu>
     </div>
     <div class="main">

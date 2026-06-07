@@ -7,6 +7,8 @@ import java.util.List;
 public class BuildPipeline {
     private String id;
     private String name;
+    private String configType;
+    private String configProfileId;
     private String primarySubscriptionId;
     private List<String> additionalSubscriptionIds = new ArrayList<>();
     private String scriptName;
@@ -22,6 +24,10 @@ public class BuildPipeline {
     public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getConfigType() { return configType; }
+    public void setConfigType(String configType) { this.configType = configType; }
+    public String getConfigProfileId() { return configProfileId; }
+    public void setConfigProfileId(String configProfileId) { this.configProfileId = configProfileId; }
     public String getPrimarySubscriptionId() { return primarySubscriptionId; }
     public void setPrimarySubscriptionId(String primarySubscriptionId) { this.primarySubscriptionId = primarySubscriptionId; }
     public List<String> getAdditionalSubscriptionIds() { return additionalSubscriptionIds; }
@@ -42,4 +48,30 @@ public class BuildPipeline {
     public void setLastRunAt(LocalDateTime lastRunAt) { this.lastRunAt = lastRunAt; }
     public String getLastRunStatus() { return lastRunStatus; }
     public void setLastRunStatus(String lastRunStatus) { this.lastRunStatus = lastRunStatus; }
+
+    /**
+     * 验证 BuildPipeline 配置是否有效
+     *
+     * @throws IllegalArgumentException 如果验证失败
+     */
+    public void validate() {
+        if (configType == null || configType.isBlank()) {
+            throw new IllegalArgumentException("配置类型不能为空");
+        }
+
+        ConfigType type = ConfigType.fromValue(configType);
+
+        switch (type) {
+            case SUBSCRIPTION:
+                if (primarySubscriptionId == null || primarySubscriptionId.isBlank()) {
+                    throw new IllegalArgumentException("订阅源模式下，主订阅源ID不能为空");
+                }
+                break;
+            case CONFIG_PROFILE:
+                if (configProfileId == null || configProfileId.isBlank()) {
+                    throw new IllegalArgumentException("配置组合模式下，配置组合ID不能为空");
+                }
+                break;
+        }
+    }
 }

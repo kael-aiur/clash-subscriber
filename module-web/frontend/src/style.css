@@ -123,3 +123,11 @@ html, body {
 .auth-submit {
   width: 100%;
 }
+
+.sub-menu-title {
+  cursor: pointer;
+}
+
+.sub-menu-title:hover {
+  color: #409eff;
+}

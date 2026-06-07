@@ -6,12 +6,14 @@ import { buildPipelineApi, type BuildPipeline, type TreeRow } from '@/api/build-
 import { subscriptionApi, type Subscription } from '@/api/subscription'
 import { mihomoApi, type MihomoInstance } from '@/api/mihomo'
 import { scriptApi } from '@/api/script'
+import { configProfileApi, type ConfigProfile } from '@/api/config-profile'
 
 const router = useRouter()
 const treeData = ref<TreeRow[]>([])
 const subscriptions = ref<Subscription[]>([])
 const instances = ref<MihomoInstance[]>([])
 const scriptNames = ref<string[]>([])
+const configProfiles = ref<ConfigProfile[]>([])
 const loading = ref(false)
 
 // 对话框
@@ -37,17 +39,20 @@ const instanceMap = computed(() => {
 const loadData = async () => {
   loading.value = true
   try {
-    const [pipeRes, subRes, instRes, scriptRes] = await Promise.all([
+    const [pipeRes, subRes, instRes, scriptRes, profileRes] = await Promise.all([
       buildPipelineApi.list(),
       subscriptionApi.list(),
       mihomoApi.list(),
       scriptApi.list(),
+      configProfileApi.list(),
     ])
     treeData.value = pipeRes.data.map(p => ({
       id: p.id,
       type: 'pipeline' as const,
       name: p.name,
       hasChildren: true,
+      configType: p.configType,
+      configProfileId: p.configProfileId,
       primarySubscriptionId: p.primarySubscriptionId,
       additionalSubscriptionIds: p.additionalSubscriptionIds,
       scriptName: p.scriptName,
@@ -60,6 +65,7 @@ const loadData = async () => {
     subscriptions.value = subRes.data
     instances.value = instRes.data
     scriptNames.value = scriptRes.data
+    configProfiles.value = profileRes.data
   } catch {
     ElMessage.error('加载数据失败')
   } finally {
@@ -93,6 +99,8 @@ const openCreateDialog = () => {
   dialogTitle.value = '新建构建流程'
   form.value = {
     name: '',
+    configType: 'subscription',
+    configProfileId: '',
     primarySubscriptionId: '',
     additionalSubscriptionIds: [],
     scriptName: '',
@@ -110,8 +118,16 @@ const openEditDialog = (pipeline: TreeRow) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.value.name || !form.value.primarySubscriptionId || !form.value.targetInstanceId) {
-    ElMessage.warning('请填写名称、主订阅和目标实例')
+  if (!form.value.name || !form.value.targetInstanceId) {
+    ElMessage.warning('请填写名称和目标实例')
+    return
+  }
+  if (form.value.configType === 'subscription' && !form.value.primarySubscriptionId) {
+    ElMessage.warning('请选择主订阅')
+    return
+  }
+  if (form.value.configType === 'config-profile' && !form.value.configProfileId) {
+    ElMessage.warning('请选择配置组合')
     return
   }
   try {
@@ -228,10 +244,17 @@ onMounted(loadData)
           <span v-else>{{ row.name }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="主订阅 / 状态" min-width="150">
+      <el-table-column label="配置来源 / 状态" min-width="150">
         <template #default="{ row }">
           <template v-if="row.type === 'pipeline'">
-            {{ subscriptionMap[row.primarySubscriptionId!] || row.primarySubscriptionId }}
+            <template v-if="row.configType === 'config-profile'">
+              <el-tag type="success" size="small">配置组合</el-tag>
+              {{ configProfiles.find(p => p.id === row.configProfileId)?.name || row.configProfileId }}
+            </template>
+            <template v-else>
+              <el-tag type="primary" size="small">订阅源</el-tag>
+              {{ subscriptionMap[row.primarySubscriptionId!] || row.primarySubscriptionId }}
+            </template>
           </template>
           <template v-else>
             <el-tag :type="statusType(row.status)" size="small">
@@ -305,31 +328,51 @@ onMounted(loadData)
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="构建流程名称" />
         </el-form-item>
-        <el-form-item label="主订阅" required>
-          <el-select v-model="form.primarySubscriptionId" placeholder="选择主订阅" style="width: 100%">
-            <el-option
-              v-for="sub in subscriptions"
-              :key="sub.id"
-              :label="sub.name"
-              :value="sub.id"
-            />
-          </el-select>
+        <el-form-item label="配置类型" required>
+          <el-radio-group v-model="form.configType">
+            <el-radio value="subscription">订阅源模式</el-radio>
+            <el-radio value="config-profile">配置组合模式</el-radio>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="额外订阅">
-          <el-select
-            v-model="form.additionalSubscriptionIds"
-            multiple
-            placeholder="选择额外订阅（可选）"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="sub in subscriptions.filter(s => s.id !== form.primarySubscriptionId)"
-              :key="sub.id"
-              :label="sub.name"
-              :value="sub.id"
-            />
-          </el-select>
-        </el-form-item>
+        <template v-if="form.configType === 'subscription'">
+          <el-form-item label="主订阅" required>
+            <el-select v-model="form.primarySubscriptionId" placeholder="选择主订阅" style="width: 100%">
+              <el-option
+                v-for="sub in subscriptions"
+                :key="sub.id"
+                :label="sub.name"
+                :value="sub.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="额外订阅">
+            <el-select
+              v-model="form.additionalSubscriptionIds"
+              multiple
+              placeholder="选择额外订阅（可选）"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="sub in subscriptions.filter(s => s.id !== form.primarySubscriptionId)"
+                :key="sub.id"
+                :label="sub.name"
+                :value="sub.id"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item label="配置组合" required>
+            <el-select v-model="form.configProfileId" placeholder="选择配置组合" style="width: 100%">
+              <el-option
+                v-for="profile in configProfiles"
+                :key="profile.id"
+                :label="profile.name"
+                :value="profile.id"
+              />
+            </el-select>
+          </el-form-item>
+        </template>
         <el-form-item label="脚本">
           <el-select v-model="form.scriptName" placeholder="选择脚本（可选）" clearable style="width: 100%">
             <el-option

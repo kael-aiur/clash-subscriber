@@ -50,6 +50,9 @@ data/**/*
 # Module data directory (runtime data)
 module-web/data/**
 
+# 前端构建产物（CI 自动生成）
+module-web/src/main/resources/static/
+
 # Docker
 .docker/
 .worktrees

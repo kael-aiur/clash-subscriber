@@ -12,12 +12,16 @@ import site.kael.clash.mihomo.service.MihomoService;
 import site.kael.clash.pipeline.model.BuildPipeline;
 import site.kael.clash.pipeline.model.BuildRecord;
 import site.kael.clash.pipeline.model.BuildStep;
+import site.kael.clash.pipeline.model.ConfigType;
 import site.kael.clash.pipeline.repository.BuildPipelineRepository;
 import site.kael.clash.pipeline.repository.BuildRecordRepository;
 import site.kael.clash.pipeline.service.BuildPipelineService;
 import site.kael.clash.processor.api.ProcessingContext;
+import site.kael.clash.processor.model.ConfigProfile;
 import site.kael.clash.processor.model.PipelineConfig;
 import site.kael.clash.processor.model.PipelineStep;
+import site.kael.clash.processor.repository.ConfigProfileRepository;
+import site.kael.clash.processor.service.ConfigGeneratorService;
 import site.kael.clash.processor.service.PipelineService;
 import site.kael.clash.scheduler.service.SchedulerService;
 import site.kael.clash.subscription.service.SubscriptionService;
@@ -41,6 +45,8 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
     private final PipelineService pipelineService;
     private final MihomoService mihomoService;
     private final SchedulerService schedulerService;
+    private final ConfigProfileRepository configProfileRepository;
+    private final ConfigGeneratorService configGeneratorService;
 
     public BuildPipelineServiceImpl(
             BuildPipelineRepository pipelineRepository,
@@ -48,13 +54,17 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             SubscriptionService subscriptionService,
             PipelineService pipelineService,
             MihomoService mihomoService,
-            SchedulerService schedulerService) {
+            SchedulerService schedulerService,
+            ConfigProfileRepository configProfileRepository,
+            ConfigGeneratorService configGeneratorService) {
         this.pipelineRepository = pipelineRepository;
         this.recordRepository = recordRepository;
         this.subscriptionService = subscriptionService;
         this.pipelineService = pipelineService;
         this.mihomoService = mihomoService;
         this.schedulerService = schedulerService;
+        this.configProfileRepository = configProfileRepository;
+        this.configGeneratorService = configGeneratorService;
     }
 
     @PostConstruct
@@ -78,6 +88,11 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
 
     @Override
     public BuildPipeline create(BuildPipeline pipeline) {
+        // 设置默认配置类型
+        if (pipeline.getConfigType() == null || pipeline.getConfigType().isBlank()) {
+            pipeline.setConfigType(ConfigType.SUBSCRIPTION.getValue());
+        }
+        pipeline.validate();
         pipeline.setId(IdGenerator.generate());
         LocalDateTime now = LocalDateTime.now();
         pipeline.setCreatedAt(now);
@@ -95,6 +110,11 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         }
         pipelineRepository.findById(pipeline.getId())
                 .orElseThrow(() -> new BusinessException("构建流程不存在: " + pipeline.getId()));
+        // 设置默认配置类型
+        if (pipeline.getConfigType() == null || pipeline.getConfigType().isBlank()) {
+            pipeline.setConfigType(ConfigType.SUBSCRIPTION.getValue());
+        }
+        pipeline.validate();
         pipeline.setUpdatedAt(LocalDateTime.now());
         BuildPipeline saved = pipelineRepository.save(pipeline);
         syncCron(saved);
@@ -136,6 +156,13 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         BuildPipeline pipeline = pipelineRepository.findById(pipelineId)
                 .orElseThrow(() -> new BusinessException(404, "构建流程不存在: " + pipelineId));
 
+        // 向后兼容：自动迁移 configType 为 null 的记录为 "subscription"
+        if (pipeline.getConfigType() == null || pipeline.getConfigType().isBlank()) {
+            pipeline.setConfigType(ConfigType.SUBSCRIPTION.getValue());
+            pipelineRepository.save(pipeline);
+            log.info("自动迁移构建流程配置类型为 subscription: {} ({})", pipeline.getName(), pipelineId);
+        }
+
         BuildRecord record = new BuildRecord();
         record.setId(IdGenerator.generate());
         record.setBuildPipelineId(pipelineId);
@@ -146,64 +173,22 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         List<BuildStep> steps = record.getSteps();
 
         try {
-            // 1. 拉取主订阅配置
-            String primarySubName = subscriptionService.findById(pipeline.getPrimarySubscriptionId())
-                    .map(site.kael.clash.subscription.model.Subscription::getName)
-                    .orElse(pipeline.getPrimarySubscriptionId());
-            BuildStep step1 = startStep("拉取主订阅配置", Map.of("subscriptionName", primarySubName));
-            ClashConfig config = subscriptionService.fetch(pipeline.getPrimarySubscriptionId());
-            if (config == null) {
-                config = new ClashConfig("empty");
-                config.setRaw(new LinkedHashMap<>());
-                config.setProxies(new ArrayList<>());
-            }
-            List<ProxyNode> allProxies = new ArrayList<>(config.getProxies() != null ? config.getProxies() : Collections.emptyList());
-            Map<String, Object> step1Output = new LinkedHashMap<>();
-            step1Output.put("configSummary", buildConfigSummary(config));
-            step1Output.put("configYaml", configToYaml(config));
-            finishStep(step1, "SUCCESS", step1Output);
-            steps.add(step1);
+            // 根据配置类型选择配置来源
+            ConfigType configType = ConfigType.fromValue(pipeline.getConfigType());
+            ClashConfig config;
 
-            // 2. 合并额外订阅节点
-            Map<String, Object> step2Input = new LinkedHashMap<>();
-            step2Input.put("mainConfigSummary", buildConfigSummary(config));
-            step2Input.put("mainConfigYaml", configToYaml(config));
-            List<Map<String, Object>> extraConfigs = new ArrayList<>();
-            BuildStep step2 = startStep("合并额外订阅节点", null); // input 后续设置
-            if (pipeline.getAdditionalSubscriptionIds() != null) {
-                for (String subId : pipeline.getAdditionalSubscriptionIds()) {
-                    try {
-                        ClashConfig extra = subscriptionService.fetch(subId);
-                        if (extra != null && extra.getProxies() != null) {
-                            String extraName = subscriptionService.findById(subId)
-                                    .map(site.kael.clash.subscription.model.Subscription::getName)
-                                    .orElse(subId);
-                            Map<String, Object> extraInfo = new LinkedHashMap<>();
-                            extraInfo.put("subscriptionName", extraName);
-                            extraInfo.put("configSummary", buildConfigSummary(extra));
-                            extraInfo.put("configYaml", configToYaml(extra));
-                            extraConfigs.add(extraInfo);
-                            allProxies.addAll(extra.getProxies());
-                            log.debug("合并额外订阅: {}，节点数: {}", subId, extra.getProxies().size());
-                        }
-                    } catch (Exception e) {
-                        log.warn("获取额外订阅失败: {}, 原因: {}", subId, e.getMessage());
-                        record.getLogs().add("WARN: 获取额外订阅失败: " + subId + " - " + e.getMessage());
-                    }
-                }
+            switch (configType) {
+                case SUBSCRIPTION:
+                    config = executeSubscriptionMode(pipeline, steps, record);
+                    break;
+                case CONFIG_PROFILE:
+                    config = executeConfigProfileMode(pipeline, steps, record);
+                    break;
+                default:
+                    throw new BusinessException("不支持的配置类型: " + pipeline.getConfigType());
             }
-            step2Input.put("extraConfigs", extraConfigs);
-            step2.setInput(step2Input);
-            config.setProxies(allProxies);
-            config.getRaw().put("proxies", allProxies.stream().map(this::proxyNodeToMap).toList());
-            Map<String, Object> step2Output = new LinkedHashMap<>();
-            step2Output.put("configSummary", buildConfigSummary(config));
-            step2Output.put("configYaml", configToYaml(config));
-            finishStep(step2, "SUCCESS", step2Output);
-            steps.add(step2);
-            record.getLogs().add("合并节点总数: " + allProxies.size());
 
-            // 3. 脚本处理
+            // 脚本处理（两种模式都支持）
             if (pipeline.getScriptName() != null && !pipeline.getScriptName().isBlank()) {
                 Map<String, Object> step3Input = new LinkedHashMap<>();
                 step3Input.put("scriptName", pipeline.getScriptName());
@@ -235,7 +220,7 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 steps.add(step3);
             }
 
-            // 4. 推送到目标 mihomo 实例
+            // 推送到目标 mihomo 实例
             String instanceName = mihomoService.findById(pipeline.getTargetInstanceId())
                     .map(site.kael.clash.mihomo.model.MihomoInstance::getName)
                     .orElse(pipeline.getTargetInstanceId());
@@ -280,6 +265,198 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         }
 
         return recordRepository.save(record);
+    }
+
+    // ========== 执行模式 ==========
+
+    /**
+     * 执行订阅源模式：拉取主订阅配置，合并额外订阅节点
+     */
+    private ClashConfig executeSubscriptionMode(BuildPipeline pipeline, List<BuildStep> steps, BuildRecord record) {
+        // 1. 拉取主订阅配置
+        String primarySubName = subscriptionService.findById(pipeline.getPrimarySubscriptionId())
+                .map(site.kael.clash.subscription.model.Subscription::getName)
+                .orElse(pipeline.getPrimarySubscriptionId());
+        BuildStep step1 = startStep("拉取主订阅配置", Map.of("subscriptionName", primarySubName));
+        ClashConfig config = subscriptionService.fetch(pipeline.getPrimarySubscriptionId());
+        if (config == null) {
+            config = new ClashConfig("empty");
+            config.setRaw(new LinkedHashMap<>());
+            config.setProxies(new ArrayList<>());
+        }
+        List<ProxyNode> allProxies = new ArrayList<>(config.getProxies() != null ? config.getProxies() : Collections.emptyList());
+        Map<String, Object> step1Output = new LinkedHashMap<>();
+        step1Output.put("configSummary", buildConfigSummary(config));
+        step1Output.put("configYaml", configToYaml(config));
+        finishStep(step1, "SUCCESS", step1Output);
+        steps.add(step1);
+
+        // 2. 合并额外订阅节点
+        Map<String, Object> step2Input = new LinkedHashMap<>();
+        step2Input.put("mainConfigSummary", buildConfigSummary(config));
+        step2Input.put("mainConfigYaml", configToYaml(config));
+        List<Map<String, Object>> extraConfigs = new ArrayList<>();
+        BuildStep step2 = startStep("合并额外订阅节点", null); // input 后续设置
+        if (pipeline.getAdditionalSubscriptionIds() != null) {
+            for (String subId : pipeline.getAdditionalSubscriptionIds()) {
+                try {
+                    ClashConfig extra = subscriptionService.fetch(subId);
+                    if (extra != null && extra.getProxies() != null) {
+                        String extraName = subscriptionService.findById(subId)
+                                .map(site.kael.clash.subscription.model.Subscription::getName)
+                                .orElse(subId);
+                        Map<String, Object> extraInfo = new LinkedHashMap<>();
+                        extraInfo.put("subscriptionName", extraName);
+                        extraInfo.put("configSummary", buildConfigSummary(extra));
+                        extraInfo.put("configYaml", configToYaml(extra));
+                        extraConfigs.add(extraInfo);
+                        allProxies.addAll(extra.getProxies());
+                        log.debug("合并额外订阅: {}，节点数: {}", subId, extra.getProxies().size());
+                    }
+                } catch (Exception e) {
+                    log.warn("获取额外订阅失败: {}, 原因: {}", subId, e.getMessage());
+                    record.getLogs().add("WARN: 获取额外订阅失败: " + subId + " - " + e.getMessage());
+                }
+            }
+        }
+        step2Input.put("extraConfigs", extraConfigs);
+        step2.setInput(step2Input);
+        config.setProxies(allProxies);
+        config.getRaw().put("proxies", allProxies.stream().map(this::proxyNodeToMap).toList());
+        Map<String, Object> step2Output = new LinkedHashMap<>();
+        step2Output.put("configSummary", buildConfigSummary(config));
+        step2Output.put("configYaml", configToYaml(config));
+        finishStep(step2, "SUCCESS", step2Output);
+        steps.add(step2);
+        record.getLogs().add("合并节点总数: " + allProxies.size());
+
+        return config;
+    }
+
+    /**
+     * 执行配置组合模式：获取配置组合，调用 ConfigGeneratorService 生成完整配置
+     */
+    private ClashConfig executeConfigProfileMode(BuildPipeline pipeline, List<BuildStep> steps, BuildRecord record) {
+        // 1. 获取配置组合
+        String configProfileName = configProfileRepository.findById(pipeline.getConfigProfileId())
+                .map(ConfigProfile::getName)
+                .orElse(pipeline.getConfigProfileId());
+        Map<String, Object> step1Input = new LinkedHashMap<>();
+        step1Input.put("configProfileName", configProfileName);
+        BuildStep step1 = startStep("获取配置组合", step1Input);
+
+        ConfigProfile profile = configProfileRepository.findById(pipeline.getConfigProfileId())
+                .orElseThrow(() -> new BusinessException("配置组合不存在: " + pipeline.getConfigProfileId()));
+
+        Map<String, Object> step1Output = new LinkedHashMap<>();
+        step1Output.put("profileName", profile.getName());
+        step1Output.put("subscriptionCount", profile.getSubscriptionIds() != null ? profile.getSubscriptionIds().size() : 0);
+        step1Output.put("proxyGroupCount", profile.getProxyGroups() != null ? profile.getProxyGroups().size() : 0);
+        step1Output.put("ruleGroupCount", profile.getRuleGroups() != null ? profile.getRuleGroups().size() : 0);
+        finishStep(step1, "SUCCESS", step1Output);
+        steps.add(step1);
+
+        // 2. 调用 ConfigGeneratorService 生成完整配置（每次构建都重新生成，不使用缓存）
+        Map<String, Object> step2Input = new LinkedHashMap<>();
+        step2Input.put("configProfileName", profile.getName());
+        BuildStep step2 = startStep("生成完整配置", step2Input);
+
+        String yamlContent = configGeneratorService.generate(profile);
+        ClashConfig config = yamlToClashConfig(yamlContent, profile.getName());
+
+        Map<String, Object> step2Output = new LinkedHashMap<>();
+        step2Output.put("configSummary", buildConfigSummary(config));
+        step2Output.put("configYaml", configToYaml(config));
+        finishStep(step2, "SUCCESS", step2Output);
+        steps.add(step2);
+        record.getLogs().add("配置组合生成完成: " + profile.getName() + "，节点数: " + (config.getProxies() != null ? config.getProxies().size() : 0));
+
+        return config;
+    }
+
+    // ========== 辅助方法 ==========
+
+    /**
+     * 将 YAML 字符串转换为 ClashConfig 对象
+     */
+    @SuppressWarnings("unchecked")
+    private ClashConfig yamlToClashConfig(String yamlContent, String name) {
+        org.yaml.snakeyaml.Yaml yaml = new org.yaml.snakeyaml.Yaml();
+        Map<String, Object> raw = yaml.load(yamlContent);
+        if (raw == null) {
+            raw = new LinkedHashMap<>();
+        }
+
+        ClashConfig config = new ClashConfig(name);
+        config.setRaw(raw);
+
+        // 解析 proxies
+        List<ProxyNode> proxies = new ArrayList<>();
+        Object proxiesObj = raw.get("proxies");
+        if (proxiesObj instanceof List<?> proxyList) {
+            for (Object proxyObj : proxyList) {
+                if (proxyObj instanceof Map<?, ?> proxyMap) {
+                    proxies.add(mapToProxyNode((Map<String, Object>) proxyMap));
+                }
+            }
+        }
+        config.setProxies(proxies);
+
+        // 解析 proxy-groups
+        Object groupsObj = raw.get("proxy-groups");
+        if (groupsObj instanceof Map<?, ?> groupsMap) {
+            config.setProxyGroups((Map<String, Object>) groupsMap);
+        } else if (groupsObj instanceof List<?> groupsList) {
+            // 将数组格式转换为 Map 格式
+            Map<String, Object> groupsMapResult = new LinkedHashMap<>();
+            for (Object groupObj : groupsList) {
+                if (groupObj instanceof Map<?, ?> groupMap) {
+                    String groupName = (String) groupMap.get("name");
+                    if (groupName != null) {
+                        groupsMapResult.put(groupName, groupMap);
+                    }
+                }
+            }
+            config.setProxyGroups(groupsMapResult);
+        }
+
+        // 解析 rules
+        Object rulesObj = raw.get("rules");
+        if (rulesObj instanceof List<?> rulesList) {
+            config.setRules(new ArrayList<>(rulesList));
+        }
+
+        return config;
+    }
+
+    /**
+     * 将 Map 转换为 ProxyNode 对象
+     */
+    private ProxyNode mapToProxyNode(Map<String, Object> map) {
+        ProxyNode node = new ProxyNode();
+        node.setName((String) map.getOrDefault("name", ""));
+        node.setType((String) map.getOrDefault("type", ""));
+        node.setServer((String) map.getOrDefault("server", ""));
+        Object portObj = map.get("port");
+        if (portObj instanceof Number portNum) {
+            node.setPort(portNum.intValue());
+        } else if (portObj instanceof String portStr) {
+            try {
+                node.setPort(Integer.parseInt(portStr));
+            } catch (NumberFormatException e) {
+                node.setPort(0);
+            }
+        }
+
+        // 将额外字段放入 extra
+        Map<String, Object> extra = new LinkedHashMap<>(map);
+        extra.remove("name");
+        extra.remove("type");
+        extra.remove("server");
+        extra.remove("port");
+        node.setExtra(extra);
+
+        return node;
     }
 
     // ========== 构建历史 ==========

@@ -1,5 +1,6 @@
 package site.kael.clash.common.util;
 
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 import site.kael.clash.common.model.ClashConfig;
 import site.kael.clash.common.model.ProxyNode;
@@ -9,14 +10,27 @@ import java.util.List;
 import java.util.Map;
 
 public class YamlUtil {
-    private static final Yaml yaml = new Yaml();
+    private static final Yaml yaml;
+    private static final Yaml yamlForDump;
+
+    static {
+        // 用于解析的 Yaml（默认配置）
+        yaml = new Yaml();
+
+        // 用于输出的 Yaml（配置 UTF-8 编码，避免中文乱码）
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setAllowUnicode(true);
+        options.setIndent(2);
+        yamlForDump = new Yaml(options);
+    }
 
     public static Map<String, Object> parseYaml(String content) {
         return yaml.load(content);
     }
 
     public static String dump(Object data) {
-        return yaml.dump(data);
+        return yamlForDump.dump(data);
     }
 
     public static ClashConfig parseClashConfig(String content) {
