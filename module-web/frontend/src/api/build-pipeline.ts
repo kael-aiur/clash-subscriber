@@ -3,8 +3,10 @@ import api from './index'
 export interface BuildPipeline {
   id: string
   name: string
-  primarySubscriptionId: string
-  additionalSubscriptionIds: string[]
+  configType: 'subscription' | 'config-profile'
+  configProfileId?: string
+  primarySubscriptionId?: string
+  additionalSubscriptionIds?: string[]
   scriptName?: string
   targetInstanceId: string
   cronExpression?: string
@@ -42,6 +44,8 @@ export interface TreeRow {
   name: string
   hasChildren?: boolean
   // pipeline 字段
+  configType?: 'subscription' | 'config-profile'
+  configProfileId?: string
   primarySubscriptionId?: string
   additionalSubscriptionIds?: string[]
   scriptName?: string
