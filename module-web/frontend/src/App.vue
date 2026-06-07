@@ -86,7 +86,7 @@ const handleLogout = async () => {
           <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.path">
             <template #title>
               <el-icon><component :is="item.icon" /></el-icon>
-              <span>{{ item.label }}</span>
+              <span class="sub-menu-title" @click.stop="handleMenuSelect(item.path)">{{ item.label }}</span>
             </template>
             <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
               <el-icon><component :is="child.icon" /></el-icon>
