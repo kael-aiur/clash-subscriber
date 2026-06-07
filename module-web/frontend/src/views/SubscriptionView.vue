@@ -28,6 +28,8 @@ const ruleTypeFilter = ref('')
 const ruleViewMode = ref<'grouped' | 'table'>('grouped')
 const ruleExpandedPolicies = ref<string[]>([])
 const ruleExpandedTypes = ref<string[]>([]) // 格式: "policy::type"
+const probeDomain = ref('')
+const probeResult = ref<DomainProbeResult | null>(null)
 
 // 配置关系标签页
 const selectedGroup = ref<string | null>(null)
@@ -43,6 +45,13 @@ interface RegionGroup {
   region: string
   nodes: ProxyNode[]
   count: number
+}
+
+interface DomainProbeResult {
+  domain: string
+  rule: { index: number; type: string; match: string; policy: string }
+  nodes: string[]
+  specialPolicy: string | null
 }
 
 // 代理节点地区分组
@@ -196,6 +205,8 @@ const openDetail = async (sub: Subscription) => {
   ruleTypeFilter.value = ''
   ruleViewMode.value = 'grouped'
   ruleExpandedPolicies.value = []
+  probeDomain.value = ''
+  probeResult.value = null
   selectedGroup.value = null
   groupDetailPanelVisible.value = false
   try {
@@ -222,7 +233,14 @@ const parsedRules = computed(() => {
   if (!detailData.value?.rules) return []
   return detailData.value.rules.map((rule, index) => {
     const parts = typeof rule === 'string' ? rule.split(',') : []
-    return { index: index + 1, type: parts[0] || '', match: parts[1] || '', policy: parts[2] || '' }
+    const type = parts[0] || ''
+    const isFinalRule = type === 'MATCH' || type === 'FINAL'
+    return {
+      index: index + 1,
+      type,
+      match: isFinalRule ? '' : parts[1] || '',
+      policy: isFinalRule ? parts[1] || '' : parts[2] || '',
+    }
   })
 })
 
@@ -244,6 +262,74 @@ const filteredRules = computed(() => {
   }
   return list
 })
+
+const matchDomainRule = (domain: string, rule: { type: string; match: string; policy: string }) => {
+  const normalizedDomain = domain.toLowerCase()
+  const normalizedMatch = rule.match.toLowerCase()
+
+  switch (rule.type) {
+    case 'DOMAIN':
+      return normalizedDomain === normalizedMatch
+    case 'DOMAIN-SUFFIX':
+      return normalizedDomain === normalizedMatch || normalizedDomain.endsWith(`.${normalizedMatch}`)
+    case 'DOMAIN-KEYWORD':
+      return normalizedDomain.includes(normalizedMatch)
+    case 'MATCH':
+    case 'FINAL':
+      return true
+    default:
+      return false
+  }
+}
+
+const resolvePolicyNodes = (policy: string, visited = new Set<string>()): { nodes: string[]; specialPolicy: string | null } => {
+  if (policy === 'DIRECT' || policy === 'REJECT') {
+    return { nodes: [], specialPolicy: policy }
+  }
+  if (!detailData.value?.proxyGroups || visited.has(policy)) {
+    return { nodes: [policy], specialPolicy: null }
+  }
+
+  const group = detailData.value.proxyGroups[policy] as ProxyGroup | undefined
+  if (!group) {
+    return { nodes: [policy], specialPolicy: null }
+  }
+
+  visited.add(policy)
+  const nodes: string[] = []
+  let specialPolicy: string | null = null
+  for (const member of group.proxies || []) {
+    const resolved = resolvePolicyNodes(member, new Set(visited))
+    nodes.push(...resolved.nodes)
+    if (resolved.specialPolicy && !specialPolicy) {
+      specialPolicy = resolved.specialPolicy
+    }
+  }
+  return { nodes: Array.from(new Set(nodes)), specialPolicy }
+}
+
+const handleProbeDomain = () => {
+  const domain = probeDomain.value.trim()
+  if (!domain) {
+    ElMessage.warning('请输入要探测的域名')
+    return
+  }
+
+  const matchedRule = parsedRules.value.find(rule => matchDomainRule(domain, rule))
+  if (!matchedRule) {
+    probeResult.value = null
+    ElMessage.warning('没有匹配到规则')
+    return
+  }
+
+  const resolved = resolvePolicyNodes(matchedRule.policy)
+  probeResult.value = {
+    domain,
+    rule: matchedRule,
+    nodes: resolved.nodes,
+    specialPolicy: resolved.specialPolicy,
+  }
+}
 
 // 规则类型中文名称
 const ruleTypeLabel = (type: string): string => {
@@ -759,6 +845,48 @@ onMounted(() => {
             </div>
           </el-tab-pane>
 
+          <!-- 域名探测 -->
+          <el-tab-pane label="域名探测" name="domain-probe">
+            <div class="domain-probe">
+              <div class="probe-form">
+                <el-input
+                  v-model="probeDomain"
+                  placeholder="输入域名，如 github.com"
+                  clearable
+                  style="max-width: 420px;"
+                  @keyup.enter="handleProbeDomain"
+                >
+                  <template #prepend>域名</template>
+                </el-input>
+                <el-button type="primary" @click="handleProbeDomain">探测使用节点</el-button>
+              </div>
+
+              <el-empty v-if="!probeResult" description="输入域名后查看命中规则和最终可用节点" />
+              <div v-else class="probe-result">
+                <el-descriptions :column="2" border>
+                  <el-descriptions-item label="探测域名">{{ probeResult.domain }}</el-descriptions-item>
+                  <el-descriptions-item label="命中策略">{{ probeResult.rule.policy }}</el-descriptions-item>
+                  <el-descriptions-item label="命中规则" :span="2">
+                    {{ probeResult.rule.type }}{{ probeResult.rule.match ? `,${probeResult.rule.match}` : '' }},{{ probeResult.rule.policy }}
+                  </el-descriptions-item>
+                  <el-descriptions-item label="特殊策略" :span="2">
+                    {{ probeResult.specialPolicy || '-' }}
+                  </el-descriptions-item>
+                </el-descriptions>
+
+                <div class="probe-node-section">
+                  <div class="section-title">使用节点 ({{ probeResult.nodes.length }})</div>
+                  <div v-if="probeResult.nodes.length" class="member-list">
+                    <el-tag v-for="node in probeResult.nodes" :key="node" type="info" style="margin: 2px;">
+                      {{ node }}
+                    </el-tag>
+                  </div>
+                  <div v-else style="color: #909399;">该域名走 {{ probeResult.specialPolicy || probeResult.rule.policy }}</div>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
+
           <!-- 配置关系（合并节点组关系图 + 规则） -->
           <el-tab-pane label="配置关系" name="relation">
             <div v-if="!treeRoot" style="color: #909399; text-align: center; padding: 40px;">
@@ -861,6 +989,25 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   height: 600px;
+}
+
+.domain-probe {
+  padding: 4px 0;
+}
+
+.probe-form {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.probe-result {
+  max-width: 760px;
+}
+
+.probe-node-section {
+  margin-top: 16px;
 }
 
 .relation-tree {

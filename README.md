@@ -7,7 +7,7 @@ Clash Subscriber 是一个面向 Clash/Mihomo 的订阅管理与配置构建中�
 ## 项目功能特性
 
 - 多订阅源管理：维护多个 Clash/Mihomo 订阅链接，支持 User-Agent 和自定义请求头，订阅 URL 在界面中默认脱敏展示。
-- 订阅详情解析：查看订阅的代理节点、代理组、规则列表和代理组关系，并可查看原始 YAML。
+- 订阅详情解析：查看订阅的代理节点、代理组、规则列表、代理组关系和原始 YAML，并支持输入域名探测最终会使用哪些节点。
 - 节点标签管理：用关键词规则给节点归类，支持优先级、导入和导出。
 - 规则组管理：从订阅提取规则组，或手动维护可复用规则组，并通过代理对象占位符适配不同配置。
 - 配置组合：把订阅、代理组、规则组、基础 Clash 配置和访问认证组合成可直接订阅的 YAML。
@@ -95,19 +95,25 @@ java -Dserver.port=9090 -jar module-web/target/*.jar
 
 ![订阅源管理](assets/readme/screenshots/01-subscriptions.png)
 
-点击“详情”后可以查看订阅解析结果：基本信息、代理节点、节点组、规则和配置关系。配置关系页适合排查代理组之间的引用。
+点击“详情”后可以查看订阅解析结果：基本信息、代理节点、节点组、规则、配置关系和域名探测。配置关系页适合排查代理组之间的引用。
 
 ![订阅详情](assets/readme/screenshots/02-subscription-detail.png)
 
+![配置关系](assets/readme/screenshots/11-subscription-relation.png)
+
+在“域名探测”页签输入域名，例如 `github.com`，点击“探测使用节点”。页面会显示命中的规则、匹配到的策略、策略中的特殊节点，以及该域名最终可能使用的节点列表，适合验证订阅规则是否按预期分流。
+
+![域名探测](assets/readme/screenshots/12-subscription-domain-probe.png)
+
 ### 3. 维护节点标签
 
-进入“标签管理”，为节点名称配置关键词匹配规则和优先级。配置组合中的代理组可以按关键词选择节点，也可以排除流量、到期时间、高倍率等不希望进入代理组的节点。
+进入“订阅管理 > 标签管理”，为节点名称配置关键词匹配规则和优先级。配置组合中的代理组可以按关键词选择节点，也可以排除流量、到期时间、高倍率等不希望进入代理组的节点。
 
 ![节点标签管理](assets/readme/screenshots/07-node-tags.png)
 
 ### 4. 管理规则组
 
-进入“规则组管理”，可以手动创建规则组，也可以从订阅详情中提取规则组。规则组详情支持查看、增加、编辑、删除规则，并维护代理对象占位符。
+进入“配置管理 > 规则管理”，可以手动创建规则组，也可以从订阅详情中提取规则组。规则组详情支持查看、增加、编辑、删除规则，并维护代理对象占位符。
 
 ![规则组管理](assets/readme/screenshots/08-rule-groups.png)
 
@@ -129,7 +135,7 @@ java -Dserver.port=9090 -jar module-web/target/*.jar
 
 ### 6. 编写和试运行脚本
 
-进入“脚本管理”新增脚本。脚本用于在构建过程中二次处理配置，例如过滤节点、重命名节点、调整规则或补充代理组。编辑器支持全屏 Monaco 编辑，并提供订阅预览和试运行面板。
+进入“配置管理 > 脚本管理”新增脚本。脚本用于在构建过程中二次处理配置，例如过滤节点、重命名节点、调整规则或补充代理组。编辑器支持全屏 Monaco 编辑，并提供订阅预览和试运行面板。
 
 ![脚本管理](assets/readme/screenshots/09-scripts.png)
 
@@ -144,7 +150,7 @@ function main(config) {
 
 ### 7. 配置构建流水线
 
-进入“构建流程”，点击“新建构建流程”。配置类型可选：
+进入“配置构建”，点击“新建构建流程”。配置类型可选：
 
 - 订阅源模式：选择主订阅和额外订阅，合并后执行脚本和推送。
 - 配置组合模式：选择已经维护好的配置组合，生成完整配置后执行脚本和推送。
@@ -155,19 +161,19 @@ function main(config) {
 
 ![构建和推送示意](assets/readme-illustrations/02-build-and-push.png)
 
-### 8. 管理 Mihomo 实例
+### 8. 管理实例
 
-进入“Mihomo 实例”，添加实例名称、API 地址和 API 密钥。API 地址应指向 Mihomo External Controller，例如 `http://192.168.1.1:9090`。可以对单个或全部实例执行健康检查，也可以手动推送配置。
+进入“实例管理”，添加实例名称、API 地址和 API 密钥。API 地址应指向 Mihomo External Controller，例如 `http://192.168.1.1:9090`。可以对单个或全部实例执行健康检查，也可以手动推送配置。
 
-![Mihomo 实例管理](assets/readme/screenshots/06-mihomo-instances.png)
+![实例管理](assets/readme/screenshots/06-mihomo-instances.png)
 
 实例详情页包含实例信息、转发规则和推送历史。转发规则页可以输入域名，查看匹配到的规则、策略和转发路径。
 
 ### 9. 使用定时任务
 
-进入“定时任务管理”，选择构建流水线、目标实例和 Cron 表达式。任务可启停、编辑、删除，也可以手动触发。
+进入“配置构建”，在构建流程中配置 Cron 表达式和目标实例。任务可启停、编辑、删除，也可以手动触发。
 
-![定时任务管理](assets/readme/screenshots/10-scheduled-tasks.png)
+![定时任务](assets/readme/screenshots/10-scheduled-tasks.png)
 
 ## 功能介绍
 
