@@ -3,6 +3,7 @@ package site.kael.clash.web.config;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import site.kael.clash.web.auth.BasicAuthInterceptor;
 import site.kael.clash.web.auth.interceptor.AuthInterceptor;
@@ -37,5 +38,12 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/api/auth/**", "/api/config/*");
         registry.addInterceptor(basicAuthInterceptor)
                 .addPathPatterns("/api/config/*");
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 处理 Chrome DevTools 的 well-known 请求
+        registry.addResourceHandler("/.well-known/**")
+                .addResourceLocations("classpath:/static/.well-known/");
     }
 }
