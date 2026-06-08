@@ -9,6 +9,7 @@ import site.kael.clash.pipeline.model.BuildRecord;
 import site.kael.clash.pipeline.service.BuildPipelineService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/build-pipelines")
@@ -53,9 +54,10 @@ public class BuildPipelineController {
     }
 
     @PostMapping("/{id}/execute")
-    public ResponseEntity<BuildRecord> execute(@PathVariable String id) {
+    public ResponseEntity<Map<String, String>> execute(@PathVariable String id) {
         log.info("手动触发构建流程: id={}", id);
-        return ResponseEntity.ok(buildPipelineService.execute(id));
+        String recordId = buildPipelineService.executeAsync(id);
+        return ResponseEntity.ok(Map.of("recordId", recordId));
     }
 
     @GetMapping("/{id}/records")
