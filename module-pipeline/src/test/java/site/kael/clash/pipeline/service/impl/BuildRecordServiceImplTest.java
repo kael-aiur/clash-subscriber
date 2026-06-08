@@ -5,11 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import site.kael.clash.pipeline.model.BuildProgressEvent;
 
-import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 class BuildRecordServiceImplTest {
@@ -31,15 +26,10 @@ class BuildRecordServiceImplTest {
     }
 
     @Test
-    void publishEvent_shouldNotifySubscribers() throws IOException, InterruptedException {
+    void publishEvent_shouldNotifySubscribers() {
         // Given
         String recordId = "record-1";
         SseEmitter emitter = service.subscribeProgress(recordId);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<BuildProgressEvent> receivedEvent = new AtomicReference<>();
-
-        emitter.onCompletion(() -> latch.countDown());
 
         BuildProgressEvent event = BuildProgressEvent.stepStatus(0, "测试步骤", "RUNNING");
 
