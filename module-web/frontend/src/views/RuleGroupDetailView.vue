@@ -63,8 +63,8 @@ const loadRuleGroup = async () => {
 // 解析规则列表
 const parsedRules = computed<ParsedRule[]>(() => {
   if (!ruleGroup.value) return []
-  return ruleGroup.value.rules.map((rule, i) => {
-    const parsed = parseRule(rule, ruleGroup.value!.proxyObjects)
+  return (ruleGroup.value.rules ?? []).map((rule, i) => {
+    const parsed = parseRule(rule, ruleGroup.value!.proxyObjects ?? [])
     parsed.index = i + 1
     return parsed
   })
@@ -98,7 +98,7 @@ const openAddProxyDialog = () => {
 }
 
 const openEditProxyDialog = (index: number) => {
-  const obj = ruleGroup.value!.proxyObjects[index]
+  const obj = ruleGroup.value!.proxyObjects![index]
   proxyDialogTitle.value = '编辑代理对象'
   editingProxyIndex.value = index
   proxyForm.value = { id: obj.id, sourceName: obj.sourceName, description: obj.description || '' }
@@ -112,7 +112,7 @@ const handleSaveProxy = async () => {
     return
   }
 
-  const proxyObjects = [...ruleGroup.value.proxyObjects]
+  const proxyObjects = [...(ruleGroup.value.proxyObjects ?? [])]
   if (editingProxyIndex.value !== null) {
     proxyObjects[editingProxyIndex.value] = {
       ...proxyObjects[editingProxyIndex.value],
@@ -138,14 +138,14 @@ const handleSaveProxy = async () => {
 }
 
 const handleDeleteProxy = (index: number) => {
-  const obj = ruleGroup.value!.proxyObjects[index]
+  const obj = ruleGroup.value!.proxyObjects![index]
   ElMessageBox.confirm(
     `确定删除代理对象「${obj.sourceName} (${obj.id})」？规则中引用此对象的占位符不会自动移除。`,
     '确认删除',
     { type: 'warning' }
   ).then(async () => {
     try {
-      const proxyObjects = ruleGroup.value!.proxyObjects.filter((_, i) => i !== index)
+      const proxyObjects = (ruleGroup.value!.proxyObjects ?? []).filter((_, i) => i !== index)
       const res = await ruleGroupApi.update(ruleGroup.value!.id, { proxyObjects })
       ruleGroup.value = res.data
       ElMessage.success('删除成功')
@@ -164,8 +164,8 @@ const openAddRuleDialog = () => {
 }
 
 const openEditRuleDialog = (index: number) => {
-  const ruleStr = ruleGroup.value!.rules[index]
-  const parsed = parseRule(ruleStr, ruleGroup.value!.proxyObjects)
+  const ruleStr = ruleGroup.value!.rules![index]
+  const parsed = parseRule(ruleStr, ruleGroup.value!.proxyObjects ?? [])
   ruleDialogTitle.value = '编辑规则'
   editingRuleIndex.value = index
   ruleForm.value = {
@@ -199,7 +199,7 @@ const handleSaveRule = async () => {
     ruleStr = `${ruleForm.value.type},${ruleForm.value.match},${proxyRef}`
   }
 
-  const rules = [...ruleGroup.value.rules]
+  const rules = [...(ruleGroup.value.rules ?? [])]
   if (editingRuleIndex.value !== null) {
     rules[editingRuleIndex.value] = ruleStr
   } else {
@@ -220,7 +220,7 @@ const handleDeleteRule = (index: number) => {
   ElMessageBox.confirm('确定删除此规则？', '确认删除', { type: 'warning' }
   ).then(async () => {
     try {
-      const rules = ruleGroup.value!.rules.filter((_, i) => i !== index)
+      const rules = (ruleGroup.value!.rules ?? []).filter((_, i) => i !== index)
       const res = await ruleGroupApi.update(ruleGroup.value!.id, { rules })
       ruleGroup.value = res.data
       ElMessage.success('删除成功')
@@ -232,7 +232,7 @@ const handleDeleteRule = (index: number) => {
 
 const handleMoveRule = async (index: number, direction: 'up' | 'down') => {
   if (!ruleGroup.value) return
-  const rules = [...ruleGroup.value.rules]
+  const rules = [...(ruleGroup.value.rules ?? [])]
   const targetIndex = direction === 'up' ? index - 1 : index + 1
   if (targetIndex < 0 || targetIndex >= rules.length) return
   [rules[index], rules[targetIndex]] = [rules[targetIndex], rules[index]]
@@ -247,7 +247,7 @@ const handleMoveRule = async (index: number, direction: 'up' | 'down') => {
 // 代理对象选项（用于规则编辑下拉框）
 const proxyOptions = computed(() => {
   if (!ruleGroup.value) return []
-  return ruleGroup.value.proxyObjects.map(obj => ({
+  return (ruleGroup.value.proxyObjects ?? []).map(obj => ({
     value: obj.id,
     label: `${obj.sourceName} (${obj.id})`,
   }))
@@ -301,13 +301,13 @@ onMounted(loadRuleGroup)
       <el-card shadow="never" style="margin-bottom: 16px;">
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 600;">代理对象 ({{ ruleGroup.proxyObjects.length }})</span>
+            <span style="font-weight: 600;">代理对象 ({{ (ruleGroup.proxyObjects ?? []).length }})</span>
             <el-button type="primary" size="small" @click="openAddProxyDialog">
               <el-icon><Plus /></el-icon> 添加
             </el-button>
           </div>
         </template>
-        <el-table :data="ruleGroup.proxyObjects" border stripe size="small">
+        <el-table :data="ruleGroup.proxyObjects ?? []" border stripe size="small">
           <el-table-column prop="id" label="ID" width="160" />
           <el-table-column prop="sourceName" label="源名称" min-width="200" />
           <el-table-column prop="description" label="描述" min-width="200">
@@ -326,7 +326,7 @@ onMounted(loadRuleGroup)
       <el-card shadow="never">
         <template #header>
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 600;">规则列表 ({{ ruleGroup.rules.length }})</span>
+            <span style="font-weight: 600;">规则列表 ({{ (ruleGroup.rules ?? []).length }})</span>
             <el-button type="primary" size="small" @click="openAddRuleDialog">
               <el-icon><Plus /></el-icon> 添加
             </el-button>
