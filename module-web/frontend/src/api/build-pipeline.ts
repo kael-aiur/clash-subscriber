@@ -64,6 +64,10 @@ export interface TreeRow {
   steps?: BuildStep[]
 }
 
+export interface ExecuteResponse {
+  recordId: string
+}
+
 export const buildPipelineApi = {
   list() {
     return api.get<BuildPipeline[]>('/build-pipelines')
@@ -86,11 +90,16 @@ export const buildPipelineApi = {
   },
 
   execute(id: string) {
-    return api.post<BuildRecord>(`/build-pipelines/${id}/execute`)
+    return api.post<ExecuteResponse>(`/build-pipelines/${id}/execute`)
   },
 
   getRecords(id: string) {
     return api.get<BuildRecord[]>(`/build-pipelines/${id}/records`)
+  },
+
+  subscribeProgress(recordId: string): EventSource {
+    const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+    return new EventSource(`${baseURL}/api/build-records/${recordId}/progress`)
   },
 }
 

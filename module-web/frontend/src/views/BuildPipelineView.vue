@@ -162,13 +162,8 @@ const handleDelete = (pipeline: TreeRow) => {
 
 const handleExecute = async (pipeline: TreeRow) => {
   try {
-    const res = await buildPipelineApi.execute(pipeline.id)
-    const record = res.data
-    if (record.status === 'SUCCESS') {
-      ElMessage.success('构建成功')
-    } else {
-      ElMessage.error(`构建失败: ${record.errorMessage || '未知错误'}`)
-    }
+    await buildPipelineApi.execute(pipeline.id)
+    ElMessage.success('构建已触发')
     loadedRecords.value.delete(pipeline.id)
     await loadData()
   } catch {
