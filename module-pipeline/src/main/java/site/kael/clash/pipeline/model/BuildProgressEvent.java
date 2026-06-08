@@ -1,7 +1,5 @@
 package site.kael.clash.pipeline.model;
 
-import java.time.LocalDateTime;
-
 /**
  * 构建进度事件模型，用于 SSE 推送
  */
