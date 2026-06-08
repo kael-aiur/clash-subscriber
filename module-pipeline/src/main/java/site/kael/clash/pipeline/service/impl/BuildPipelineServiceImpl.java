@@ -294,6 +294,17 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
                 executeWithProgress(pipelineId, recordId);
             } catch (Exception e) {
                 log.error("异步构建执行失败: pipelineId={}, recordId={}", pipelineId, recordId, e);
+                try {
+                    BuildRecord failedRecord = recordRepository.findById(recordId).orElse(null);
+                    if (failedRecord != null) {
+                        failedRecord.setStatus("FAILED");
+                        failedRecord.setErrorMessage("异步执行异常: " + e.getMessage());
+                        failedRecord.setFinishedAt(LocalDateTime.now());
+                        recordRepository.save(failedRecord);
+                    }
+                } catch (Exception saveEx) {
+                    log.error("保存失败记录异常: recordId={}", recordId, saveEx);
+                }
             }
         });
 
@@ -497,8 +508,16 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             BuildStep step4 = startStep("推送到 Mihomo", step4Input);
 
             syncRawFromFields(config);
-            mihomoService.pushConfig(pipeline.getTargetInstanceId(), config);
-            finishStep(step4, "SUCCESS", Map.of("success", true));
+            log.debug("推送 YAML 内容: {}", new org.yaml.snakeyaml.Yaml().dump(config.getRaw()));
+            try {
+                mihomoService.pushConfig(pipeline.getTargetInstanceId(), config);
+                finishStep(step4, "SUCCESS", Map.of("success", true));
+            } catch (Exception pushEx) {
+                finishStep(step4, "FAILED", Map.of("success", false));
+                steps.add(step4);
+                publishStepEvent(recordId, stepIndex, "推送到 Mihomo", "FAILED");
+                throw pushEx;
+            }
             steps.add(step4);
             record.getLogs().add("配置推送成功: " + pipeline.getTargetInstanceId());
 
