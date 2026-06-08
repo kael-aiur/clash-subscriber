@@ -58,12 +58,17 @@ public class RuleGroupServiceImpl implements RuleGroupService {
         if (ruleGroup.getId() == null) {
             ruleGroup.setId(IdGenerator.generate());
         }
+        // 确保 rules 和 proxyObjects 不为 null
+        if (ruleGroup.getRules() == null) {
+            ruleGroup.setRules(new ArrayList<>());
+        }
+        if (ruleGroup.getProxyObjects() == null) {
+            ruleGroup.setProxyObjects(new ArrayList<>());
+        }
         // 为没有 ID 的代理对象自动生成 ID
-        if (ruleGroup.getProxyObjects() != null) {
-            for (RuleProxyObject proxy : ruleGroup.getProxyObjects()) {
-                if (proxy.getId() == null || proxy.getId().isBlank()) {
-                    proxy.setId(IdGenerator.generate());
-                }
+        for (RuleProxyObject proxy : ruleGroup.getProxyObjects()) {
+            if (proxy.getId() == null || proxy.getId().isBlank()) {
+                proxy.setId(IdGenerator.generate());
             }
         }
         ruleGroup.setCreatedAt(LocalDateTime.now());
