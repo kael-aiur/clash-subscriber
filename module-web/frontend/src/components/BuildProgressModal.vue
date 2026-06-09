@@ -64,18 +64,6 @@ const initSteps = () => {
   }
 }
 
-// 获取步骤状态映射
-const getStepStatus = (status: string) => {
-  switch (status) {
-    case 'WAITING': return 'wait'
-    case 'RUNNING': return 'process'
-    case 'SUCCESS': return 'finish'
-    case 'FAILED': return 'error'
-    case 'SKIPPED': return 'success'
-    default: return 'wait'
-  }
-}
-
 // 结果图标
 const resultIcon = computed(() => {
   return result.value?.status === 'SUCCESS' ? 'success' : 'error'
@@ -115,7 +103,10 @@ const subscribe = () => {
     const data = JSON.parse((e as MessageEvent).data) as StepStatusEvent
     if (data.stepIndex < steps.value.length) {
       steps.value[data.stepIndex].status = data.status
-      activeStep.value = data.stepIndex
+      // 仅在步骤开始执行时推进 activeStep，完成后不回退
+      if (data.status === 'RUNNING') {
+        activeStep.value = data.stepIndex
+      }
     }
   })
 
@@ -123,6 +114,8 @@ const subscribe = () => {
     const data = JSON.parse((e as MessageEvent).data) as BuildCompleteEvent
     result.value = data
     isCompleted.value = true
+    // 构建完成，将 activeStep 推进到步骤总数，使所有步骤显示绿色勾
+    activeStep.value = steps.value.length
     eventSource.value?.close()
     eventSource.value = null
   })
@@ -206,7 +199,6 @@ onUnmounted(() => {
           v-for="(step, index) in steps"
           :key="index"
           :title="step.name"
-          :status="getStepStatus(step.status)"
         >
           <template #description>
             <span v-if="step.status === 'RUNNING'" class="running-text">
