@@ -47,10 +47,10 @@
             <artifactId>module-scheduler</artifactId>
         </dependency>
 
-        <!-- Spring Boot Starter（核心，无 Web） -->
+        <!-- Spring Boot Starter Web（含 SSE 支持） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
+            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
         <!-- Jackson JSR310 时间模块 -->

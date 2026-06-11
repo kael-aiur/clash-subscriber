@@ -12,6 +12,15 @@ public interface BuildPipelineService {
     List<BuildPipeline> findAll();
     void deleteById(String id);
     BuildRecord execute(String pipelineId);
+
+    /**
+     * 异步执行构建流程，立即返回记录 ID
+     *
+     * @param pipelineId 构建流程 ID
+     * @return 构建记录 ID
+     */
+    String executeAsync(String pipelineId);
+
     List<BuildRecord> findRecords(String pipelineId);
     BuildRecord findRecordById(String recordId);
 }

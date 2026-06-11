@@ -7,6 +7,7 @@ import { subscriptionApi, type Subscription } from '@/api/subscription'
 import { mihomoApi, type MihomoInstance } from '@/api/mihomo'
 import { scriptApi } from '@/api/script'
 import { configProfileApi, type ConfigProfile } from '@/api/config-profile'
+import BuildProgressModal from '@/components/BuildProgressModal.vue'
 
 const router = useRouter()
 const treeData = ref<TreeRow[]>([])
@@ -20,6 +21,11 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const dialogTitle = ref('新建构建流程')
 const form = ref<Partial<BuildPipeline>>({})
+
+// 进度弹窗
+const showProgressModal = ref(false)
+const currentRecordId = ref('')
+const currentPipelineType = ref<'subscription' | 'config-profile'>('subscription')
 
 // 记录缓存
 const loadedRecords = ref<Set<string>>(new Set())
@@ -163,17 +169,27 @@ const handleDelete = (pipeline: TreeRow) => {
 const handleExecute = async (pipeline: TreeRow) => {
   try {
     const res = await buildPipelineApi.execute(pipeline.id)
-    const record = res.data
-    if (record.status === 'SUCCESS') {
-      ElMessage.success('构建成功')
-    } else {
-      ElMessage.error(`构建失败: ${record.errorMessage || '未知错误'}`)
-    }
+    const recordId = res.data.recordId
+
+    // 打开进度弹窗
+    currentRecordId.value = recordId
+    currentPipelineType.value = pipeline.configType || 'subscription'
+    showProgressModal.value = true
+
+    // 刷新列表（显示 RUNNING 状态）
     loadedRecords.value.delete(pipeline.id)
     await loadData()
   } catch {
     ElMessage.error('触发构建失败')
   }
+}
+
+const handleProgressClose = () => {
+  showProgressModal.value = false
+  currentRecordId.value = ''
+  // 刷新列表
+  loadedRecords.value.clear()
+  loadData()
 }
 
 const goToRecordDetail = (row: TreeRow) => {
@@ -321,6 +337,14 @@ onMounted(loadData)
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 构建进度弹窗 -->
+    <BuildProgressModal
+      :visible="showProgressModal"
+      :record-id="currentRecordId"
+      :pipeline-type="currentPipelineType"
+      @close="handleProgressClose"
+    />
 
     <!-- 新建/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
