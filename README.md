@@ -61,6 +61,47 @@ cd clash-subscriber
 docker-compose up -d
 ```
 
+#### 从源码构建 Docker 镜像
+
+如果需要自行构建镜像（例如修改了代码或不方便拉取远程镜像），需要先在本地构建前端，再执行 Docker 构建：
+
+```bash
+git clone https://github.com/kael-aiur/clash-subscriber.git
+cd clash-subscriber
+
+# 1. 构建前端（需要 Node.js）
+cd module-web/frontend
+npm install
+npm run build
+cd ../..
+
+# 2. 构建 Docker 镜像
+docker build -t clash-subscriber .
+
+# 3. 启动容器
+docker run -d \
+  --name clash-subscriber \
+  -p 31192:31192 \
+  -v ./data:/app/data \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  clash-subscriber
+```
+
+也可以用 docker-compose 一键构建并启动：
+
+```bash
+# 先构建前端
+cd module-web/frontend
+npm install && npm run build
+cd ../..
+
+# 构建镜像并启动
+docker-compose up -d --build
+```
+
+> **说明**：Dockerfile 中的构建阶段仅包含 Maven 后端构建，前端静态资源需要提前准备好。这是因为 Dockerfile 使用多阶段构建以减小镜像体积，Node.js 环境不会出现在最终镜像中。
+
 启动后访问：
 
 ```text
@@ -71,14 +112,26 @@ http://localhost:31192
 
 ### 手动部署
 
-需要 Java 21 和 Maven：
+需要 Java 21、Maven 和 Node.js（用于构建前端）：
 
 ```bash
 git clone https://github.com/kael-aiur/clash-subscriber.git
 cd clash-subscriber
+
+# 1. 构建前端
+cd module-web/frontend
+npm install
+npm run build
+cd ../..
+
+# 2. 构建后端
 mvn clean package -DskipTests
+
+# 3. 启动
 java -jar module-web/target/*.jar
 ```
+
+前端是一个 Vue 3 + Vite 应用，构建产物会输出到 `module-web/src/main/resources/static/`，由 Spring Boot 作为静态资源提供服务。如果跳过前端构建步骤，启动后将无法访问 Web 管理台。
 
 默认端口是 `31192`。可以通过环境变量或 JVM 参数调整：
 
