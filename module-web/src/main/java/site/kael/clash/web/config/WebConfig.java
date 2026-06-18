@@ -5,7 +5,6 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import site.kael.clash.web.auth.BasicAuthInterceptor;
 import site.kael.clash.web.auth.interceptor.AuthInterceptor;
 
 /**
@@ -16,11 +15,9 @@ import site.kael.clash.web.auth.interceptor.AuthInterceptor;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
     private final AuthInterceptor authInterceptor;
-    private final BasicAuthInterceptor basicAuthInterceptor;
 
-    public WebConfig(AuthInterceptor authInterceptor, BasicAuthInterceptor basicAuthInterceptor) {
+    public WebConfig(AuthInterceptor authInterceptor) {
         this.authInterceptor = authInterceptor;
-        this.basicAuthInterceptor = basicAuthInterceptor;
     }
 
     @Override
@@ -36,8 +33,6 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/auth/**", "/api/config/*");
-        registry.addInterceptor(basicAuthInterceptor)
-                .addPathPatterns("/api/config/*");
     }
 
     @Override
