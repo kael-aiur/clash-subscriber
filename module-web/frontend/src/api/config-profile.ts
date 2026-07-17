@@ -1,10 +1,22 @@
 import api from './index'
 
+export interface NodePolicy {
+  mode: 'all' | 'keyword'
+  excludeKeywords: string[]
+  matchKeywords: string[]
+}
+
+export interface SubscriptionRef {
+  subscriptionId: string
+  nodePolicy: NodePolicy
+}
+
 export interface ConfigProfile {
   id?: string
   name: string
   description?: string
   subscriptionIds: string[]
+  subscriptionRefs: SubscriptionRef[]
   proxyGroups: ProxyGroupConfig[]
   ruleGroups: RuleGroupRef[]
   basicConfig: ClashBasicConfig

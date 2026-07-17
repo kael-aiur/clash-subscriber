@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { configProfileApi } from '@/api/config-profile'
-import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig } from '@/api/config-profile'
+import type { ConfigProfile, ProxyGroupConfig, ClashBasicConfig, NodePolicy, SubscriptionRef } from '@/api/config-profile'
 import { subscriptionApi } from '@/api/subscription'
 import type { Subscription } from '@/api/subscription'
 import { ruleGroupApi } from '@/api/ruleGroup'
@@ -26,7 +26,7 @@ interface RuleGroupRefWithMapping {
 const form = ref<{
   name: string
   description: string
-  subscriptionIds: string[]
+  subscriptionRefs: SubscriptionRef[]
   proxyGroups: (ProxyGroupConfig & { mode: string })[]
   ruleGroups: RuleGroupRefWithMapping[]
   basicConfig: ClashBasicConfig
@@ -35,7 +35,7 @@ const form = ref<{
 }>({
   name: '',
   description: '',
-  subscriptionIds: [],
+  subscriptionRefs: [],
   proxyGroups: [],
   ruleGroups: [],
   basicConfig: {
@@ -56,6 +56,21 @@ const form = ref<{
 const subscriptions = ref<Subscription[]>([])
 const ruleGroups = ref<RuleGroup[]>([])
 
+const defaultPolicy = (): NodePolicy => ({ mode: 'all', excludeKeywords: [], matchKeywords: [] })
+
+// 桥接 el-select 多选与 form.subscriptionRefs：保留已有规则，新增的给默认规则
+const selectedSubscriptionIds = computed<string[]>({
+  get: () => form.value.subscriptionRefs.map(r => r.subscriptionId),
+  set: (ids: string[]) => {
+    const existing = new Map(form.value.subscriptionRefs.map(r => [r.subscriptionId, r]))
+    form.value.subscriptionRefs = ids.map(id => existing.get(id) ?? { subscriptionId: id, nodePolicy: defaultPolicy() })
+  },
+})
+
+const getSubscriptionName = (id: string): string => {
+  return subscriptions.value.find(s => s.id === id)?.name || id
+}
+
 onMounted(async () => {
   try {
     const [subRes, rgRes] = await Promise.all([
@@ -68,10 +83,23 @@ onMounted(async () => {
     if (isEdit.value) {
       const res = await configProfileApi.get(route.params.id as string)
       const data = res.data
+      const refs: SubscriptionRef[] = (data.subscriptionRefs && data.subscriptionRefs.length)
+        ? data.subscriptionRefs.map(r => ({
+            subscriptionId: r.subscriptionId,
+            nodePolicy: {
+              mode: r.nodePolicy?.mode || 'all',
+              excludeKeywords: r.nodePolicy?.excludeKeywords || [],
+              matchKeywords: r.nodePolicy?.matchKeywords || [],
+            },
+          }))
+        : (data.subscriptionIds || []).map((id: string) => ({
+            subscriptionId: id,
+            nodePolicy: defaultPolicy(),
+          }))
       form.value = {
         name: data.name || '',
         description: data.description || '',
-        subscriptionIds: data.subscriptionIds || [],
+        subscriptionRefs: refs,
         proxyGroups: (data.proxyGroups || []).map(g => ({
           ...g,
           mode: g.includeAll ? 'all' : (g.matchKeywords?.length > 0 ? 'keyword' : 'select'),
@@ -183,7 +211,7 @@ const handleSubmit = async () => {
     const submitData: Partial<ConfigProfile> = {
       name: form.value.name,
       description: form.value.description,
-      subscriptionIds: form.value.subscriptionIds,
+      subscriptionRefs: form.value.subscriptionRefs,
       proxyGroups: form.value.proxyGroups.map(g => ({
         name: g.name,
         type: g.type,
@@ -245,13 +273,13 @@ const handleCancel = () => {
         </el-form-item>
       </el-card>
 
-      <!-- 订阅源选择 -->
+      <!-- 订阅源选择 + 节点采纳规则 -->
       <el-card class="section">
         <template #header>
-          <span>订阅源选择</span>
+          <span>订阅源与节点采纳规则</span>
         </template>
         <el-form-item label="订阅源">
-          <el-select v-model="form.subscriptionIds" multiple placeholder="请选择订阅源" style="width: 100%">
+          <el-select v-model="selectedSubscriptionIds" multiple placeholder="请选择订阅源" style="width: 100%">
             <el-option
               v-for="sub in subscriptions"
               :key="sub.id"
@@ -260,6 +288,51 @@ const handleCancel = () => {
             />
           </el-select>
         </el-form-item>
+
+        <div v-if="form.subscriptionRefs.length > 0" class="subscription-refs">
+          <div class="refs-title">为每个订阅源配置节点采纳规则（决定该订阅源哪些节点进入最终配置）：</div>
+          <div v-for="ref in form.subscriptionRefs" :key="ref.subscriptionId" class="subscription-ref-item">
+            <el-row :gutter="10">
+              <el-col :span="6">
+                <span class="sub-name">{{ getSubscriptionName(ref.subscriptionId) }}</span>
+              </el-col>
+              <el-col :span="14">
+                <el-radio-group v-model="ref.nodePolicy.mode">
+                  <el-radio value="all">全部节点</el-radio>
+                  <el-radio value="keyword">关键词匹配</el-radio>
+                </el-radio-group>
+              </el-col>
+            </el-row>
+            <el-row v-if="ref.nodePolicy.mode === 'keyword'" :gutter="10" style="margin-top: 10px">
+              <el-col :span="24">
+                <div class="policy-label">匹配关键词（节点名包含任一关键词才采纳，留空等同全部节点）：</div>
+                <el-select
+                  v-model="ref.nodePolicy.matchKeywords"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  placeholder="输入关键词后回车，如：香港、日本"
+                  style="width: 100%"
+                />
+              </el-col>
+            </el-row>
+            <el-row :gutter="10" style="margin-top: 10px">
+              <el-col :span="24">
+                <div class="policy-label">排除关键词（包含这些关键词的节点将被排除，默认为空即不排除）：</div>
+                <el-select
+                  v-model="ref.nodePolicy.excludeKeywords"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  placeholder="输入关键词后回车，如：到期、剩余、流量、余额"
+                  style="width: 100%"
+                />
+              </el-col>
+            </el-row>
+          </div>
+        </div>
       </el-card>
 
       <!-- 代理组配置 -->
@@ -499,6 +572,30 @@ const handleCancel = () => {
 }
 .section {
   margin-bottom: 20px;
+}
+.subscription-refs {
+  margin-top: 10px;
+}
+.refs-title {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 10px;
+}
+.subscription-ref-item {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+.sub-name {
+  font-weight: 500;
+  line-height: 32px;
+}
+.policy-label {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 5px;
 }
 .card-header {
   display: flex;
