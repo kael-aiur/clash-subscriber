@@ -11,6 +11,7 @@ import site.kael.clash.processor.builtin.NodeMergeProcessor;
 import site.kael.clash.processor.builtin.ProxyGroupProcessor;
 import site.kael.clash.processor.model.*;
 import site.kael.clash.processor.repository.ConfigProfileRepository;
+import site.kael.clash.processor.util.NodeFilter;
 import site.kael.clash.processor.repository.RuleGroupRepository;
 import site.kael.clash.processor.service.ConfigGeneratorService;
 import site.kael.clash.subscription.service.SubscriptionService;
@@ -51,8 +52,8 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     public String generate(ConfigProfile profile) {
         log.info("生成配置: name={}", profile.getName());
 
-        // 1. 获取订阅源配置
-        List<ClashConfig> subscriptionConfigs = fetchSubscriptions(profile.getSubscriptionIds());
+        // 1. 获取订阅源配置，并按节点采纳规则过滤
+        List<ClashConfig> subscriptionConfigs = fetchAndFilterSubscriptions(profile.getEffectiveSubscriptionRefs());
 
         // 2. 使用 NodeMergeProcessor 合并节点
         ProcessingContext mergeContext = new ProcessingContext();
@@ -82,20 +83,23 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
     }
 
     /**
-     * 获取多个订阅源的配置
+     * 获取多个订阅源的配置，并按各自的节点采纳规则过滤节点。
      */
-    private List<ClashConfig> fetchSubscriptions(List<String> subscriptionIds) {
+    private List<ClashConfig> fetchAndFilterSubscriptions(List<SubscriptionRef> subscriptionRefs) {
         List<ClashConfig> configs = new ArrayList<>();
-        for (String subscriptionId : subscriptionIds) {
+        for (SubscriptionRef ref : subscriptionRefs) {
             try {
-                ClashConfig config = subscriptionService.fetch(subscriptionId);
+                ClashConfig config = subscriptionService.fetch(ref.getSubscriptionId());
                 if (config != null) {
+                    int rawCount = config.getProxies() != null ? config.getProxies().size() : 0;
+                    List<ProxyNode> filtered = NodeFilter.filter(config.getProxies(), ref.getNodePolicy());
+                    config.setProxies(filtered);
                     configs.add(config);
-                    log.info("获取订阅源配置: subscriptionId={}, nodes={}", subscriptionId,
-                            config.getProxies() != null ? config.getProxies().size() : 0);
+                    log.info("获取并过滤订阅源: subscriptionId={}, 原始节点={}, 过滤后={}",
+                            ref.getSubscriptionId(), rawCount, filtered.size());
                 }
             } catch (Exception e) {
-                log.error("获取订阅源失败: subscriptionId={}", subscriptionId, e);
+                log.error("获取订阅源失败: subscriptionId={}", ref.getSubscriptionId(), e);
             }
         }
         return configs;
@@ -116,7 +120,7 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
             if (groupConfig.isIncludeAll()) {
                 // 包含所有节点，但排除匹配排除关键词的节点
                 proxies = allNodes.stream()
-                        .filter(node -> !matchAnyKeyword(node.getName(), excludeKeywords))
+                        .filter(node -> !NodeFilter.containsAnyKeyword(node.getName(), excludeKeywords))
                         .map(ProxyNode::getName)
                         .collect(Collectors.toList());
             } else if (groupConfig.getNodeNames() != null && !groupConfig.getNodeNames().isEmpty()) {
@@ -125,8 +129,8 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
             } else if (groupConfig.getMatchKeywords() != null && !groupConfig.getMatchKeywords().isEmpty()) {
                 // 按关键词匹配节点，同时排除匹配排除关键词的节点
                 proxies = allNodes.stream()
-                        .filter(node -> matchKeywords(node.getName(), groupConfig.getMatchKeywords()))
-                        .filter(node -> !matchAnyKeyword(node.getName(), excludeKeywords))
+                        .filter(node -> NodeFilter.containsAnyKeyword(node.getName(), groupConfig.getMatchKeywords()))
+                        .filter(node -> !NodeFilter.containsAnyKeyword(node.getName(), excludeKeywords))
                         .map(ProxyNode::getName)
                         .collect(Collectors.toList());
             }
@@ -147,27 +151,6 @@ public class ConfigGeneratorServiceImpl implements ConfigGeneratorService {
         }
 
         return groups;
-    }
-
-    /**
-     * 检查节点名是否包含任意一个关键词（不区分大小写）
-     */
-    private boolean matchKeywords(String nodeName, List<String> keywords) {
-        String lowerName = nodeName.toLowerCase();
-        return keywords.stream()
-                .anyMatch(keyword -> lowerName.contains(keyword.toLowerCase()));
-    }
-
-    /**
-     * 检查节点名是否包含任意一个排除关键词（不区分大小写）
-     */
-    private boolean matchAnyKeyword(String nodeName, List<String> keywords) {
-        if (keywords == null || keywords.isEmpty()) {
-            return false;
-        }
-        String lowerName = nodeName.toLowerCase();
-        return keywords.stream()
-                .anyMatch(keyword -> lowerName.contains(keyword.toLowerCase()));
     }
 
     /**
