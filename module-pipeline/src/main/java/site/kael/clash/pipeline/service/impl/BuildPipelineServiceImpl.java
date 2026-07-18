@@ -42,6 +42,8 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
 
     private static final Logger log = LoggerFactory.getLogger(BuildPipelineServiceImpl.class);
 
+    private static final int MAX_RECORDS_PER_PIPELINE = 10;
+
     private final BuildPipelineRepository pipelineRepository;
     private final BuildRecordRepository recordRepository;
     private final SubscriptionService subscriptionService;
@@ -270,7 +272,9 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
             log.error("构建流程执行失败: {} ({}), 原因: {}", pipeline.getName(), pipelineId, e.getMessage(), e);
         }
 
-        return recordRepository.save(record);
+        recordRepository.save(record);
+        pruneOldRecords(pipelineId);
+        return record;
     }
 
     @Override
@@ -569,6 +573,7 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
         }
 
         recordRepository.save(record);
+        pruneOldRecords(pipelineId);
     }
 
     private ClashConfig executeSubscriptionModeWithProgress(BuildPipeline pipeline,
@@ -800,6 +805,22 @@ public class BuildPipelineServiceImpl implements BuildPipelineService {
     public BuildRecord findRecordById(String recordId) {
         return recordRepository.findById(recordId)
                 .orElseThrow(() -> new BusinessException(404, "构建记录不存在: " + recordId));
+    }
+
+    /**
+     * 清理过期构建历史：每个构建流程仅保留最新 {@value #MAX_RECORDS_PER_PIPELINE} 条，
+     * 按 startedAt 倒序删除更旧的记录。findByBuildPipelineId 已按 startedAt 倒序返回。
+     */
+    private void pruneOldRecords(String pipelineId) {
+        List<BuildRecord> records = recordRepository.findByBuildPipelineId(pipelineId);
+        if (records.size() <= MAX_RECORDS_PER_PIPELINE) {
+            return;
+        }
+        // findByBuildPipelineId 已按 startedAt 倒序，第 MAX_RECORDS_PER_PIPELINE 条之后均为待删除
+        for (int i = MAX_RECORDS_PER_PIPELINE; i < records.size(); i++) {
+            recordRepository.deleteById(records.get(i).getId());
+        }
+        log.debug("清理构建历史: pipelineId={}, 删除 {} 条", pipelineId, records.size() - MAX_RECORDS_PER_PIPELINE);
     }
 
     /**

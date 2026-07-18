@@ -9,4 +9,6 @@ public interface BuildRecordRepository {
     BuildRecord save(BuildRecord record);
     Optional<BuildRecord> findById(String id);
     List<BuildRecord> findByBuildPipelineId(String buildPipelineId);
+
+    void deleteById(String id);
 }

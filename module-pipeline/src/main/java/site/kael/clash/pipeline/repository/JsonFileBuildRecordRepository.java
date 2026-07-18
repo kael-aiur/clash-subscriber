@@ -85,4 +85,16 @@ public class JsonFileBuildRecordRepository implements BuildRecordRepository {
         records.sort(Comparator.comparing(BuildRecord::getStartedAt).reversed());
         return records;
     }
+
+    @Override
+    public void deleteById(String id) {
+        Path filePath = recordDir.resolve(id + ".json");
+        try {
+            Files.deleteIfExists(filePath);
+            log.debug("删除构建记录: {}", filePath);
+        } catch (IOException e) {
+            // 清理失败不应影响构建主流程，仅记 warn
+            log.warn("删除构建记录失败: {}, 原因: {}", id, e.getMessage());
+        }
+    }
 }

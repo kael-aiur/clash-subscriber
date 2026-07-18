@@ -26,6 +26,7 @@ import site.kael.clash.scheduler.service.SchedulerService;
 import site.kael.clash.subscription.model.Subscription;
 import site.kael.clash.subscription.service.SubscriptionService;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -434,6 +435,89 @@ class BuildPipelineServiceImplTest {
         void testConfigTypeGetValue() {
             assertEquals("subscription", ConfigType.SUBSCRIPTION.getValue());
             assertEquals("config-profile", ConfigType.CONFIG_PROFILE.getValue());
+        }
+    }
+
+    // ========== 构建历史清理测试 ==========
+
+    @Nested
+    @DisplayName("构建历史数量限制")
+    class HistoryPruningTests {
+
+        @Test
+        @DisplayName("历史超过 10 条：删除最旧，保留最新 10 条")
+        void shouldPruneOldestWhenExceedLimit() {
+            BuildPipeline pipeline = createConfigProfilePipeline();
+            ConfigProfile profile = createConfigProfile();
+            String yamlContent = createValidYamlContent();
+            MihomoInstance instance = createMihomoInstance();
+
+            when(pipelineRepository.findById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
+            when(configProfileRepository.findById(CONFIG_PROFILE_ID)).thenReturn(Optional.of(profile));
+            when(configGeneratorService.generate(profile)).thenReturn(yamlContent);
+            when(mihomoService.findById(TARGET_INSTANCE_ID)).thenReturn(Optional.of(instance));
+            when(recordRepository.save(any(BuildRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            // 模拟已有 11 条历史（按 startedAt 倒序），最旧的是末尾 index 10
+            when(recordRepository.findByBuildPipelineId(PIPELINE_ID)).thenReturn(buildRecords(11));
+
+            buildPipelineService.execute(PIPELINE_ID);
+
+            // 仅删除最旧那一条（"rec-oldest"），其余 10 条保留
+            verify(recordRepository).deleteById("rec-oldest");
+            verify(recordRepository, times(1)).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("历史未超过 10 条：不删除任何记录")
+        void shouldNotPruneWhenWithinLimit() {
+            BuildPipeline pipeline = createConfigProfilePipeline();
+            ConfigProfile profile = createConfigProfile();
+            String yamlContent = createValidYamlContent();
+            MihomoInstance instance = createMihomoInstance();
+
+            when(pipelineRepository.findById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
+            when(configProfileRepository.findById(CONFIG_PROFILE_ID)).thenReturn(Optional.of(profile));
+            when(configGeneratorService.generate(profile)).thenReturn(yamlContent);
+            when(mihomoService.findById(TARGET_INSTANCE_ID)).thenReturn(Optional.of(instance));
+            when(recordRepository.save(any(BuildRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(recordRepository.findByBuildPipelineId(PIPELINE_ID)).thenReturn(buildRecords(9));
+
+            buildPipelineService.execute(PIPELINE_ID);
+
+            verify(recordRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("构建失败同样触发清理")
+        void shouldPruneEvenWhenBuildFailed() {
+            BuildPipeline pipeline = createConfigProfilePipeline();
+
+            when(pipelineRepository.findById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
+            when(configProfileRepository.findById(CONFIG_PROFILE_ID)).thenReturn(Optional.empty());
+            when(recordRepository.save(any(BuildRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(recordRepository.findByBuildPipelineId(PIPELINE_ID)).thenReturn(buildRecords(11));
+
+            BuildRecord record = buildPipelineService.execute(PIPELINE_ID);
+
+            assertEquals("FAILED", record.getStatus());
+            verify(recordRepository).deleteById("rec-oldest");
+        }
+
+        /**
+         * 构造指定数量的历史记录列表，按 startedAt 倒序（index 0 最新，末尾最旧）。
+         * 最旧的一条（index count-1）id 固定为 "rec-oldest"。
+         */
+        private List<BuildRecord> buildRecords(int count) {
+            LocalDateTime base = LocalDateTime.of(2026, 1, 1, 12, 0);
+            List<BuildRecord> list = new ArrayList<>();
+            for (int i = 0; i < count; i++) {
+                BuildRecord r = new BuildRecord();
+                r.setId(i == count - 1 ? "rec-oldest" : "rec-" + i);
+                r.setBuildPipelineId(PIPELINE_ID);
+                r.setStartedAt(base.minusMinutes(i));
+                list.add(r);
+            }
+            return list;
         }
     }
 
