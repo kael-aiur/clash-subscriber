@@ -1,5 +1,6 @@
 package site.kael.clash.processor.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,8 +13,10 @@ public class ConfigProfile {
     private String id;
     private String name;
     private String description;
-    /** 关联的订阅源 ID 列表 */
+    /** 关联的订阅源 ID 列表（保留用于兼容旧数据读取） */
     private List<String> subscriptionIds = new ArrayList<>();
+    /** 选中的订阅源及其节点采纳规则（优先于 subscriptionIds） */
+    private List<SubscriptionRef> subscriptionRefs = new ArrayList<>();
     /** 代理组配置列表 */
     private List<ProxyGroupConfig> proxyGroups = new ArrayList<>();
     /** 规则组引用列表（按优先级排序） */
@@ -40,6 +43,27 @@ public class ConfigProfile {
     public void setDescription(String description) { this.description = description; }
     public List<String> getSubscriptionIds() { return subscriptionIds; }
     public void setSubscriptionIds(List<String> subscriptionIds) { this.subscriptionIds = subscriptionIds; }
+    public List<SubscriptionRef> getSubscriptionRefs() { return subscriptionRefs; }
+    public void setSubscriptionRefs(List<SubscriptionRef> subscriptionRefs) { this.subscriptionRefs = subscriptionRefs; }
+    /**
+     * 获取生效的订阅源引用：优先 subscriptionRefs；为空时把旧 subscriptionIds
+     * 映射为默认规则（全部节点、排除关键词为空）的引用，保证旧数据行为不变。
+     */
+    @JsonIgnore
+    public List<SubscriptionRef> getEffectiveSubscriptionRefs() {
+        if (subscriptionRefs != null && !subscriptionRefs.isEmpty()) {
+            return subscriptionRefs;
+        }
+        List<SubscriptionRef> mapped = new ArrayList<>();
+        if (subscriptionIds != null) {
+            for (String id : subscriptionIds) {
+                SubscriptionRef ref = new SubscriptionRef();
+                ref.setSubscriptionId(id);
+                mapped.add(ref);
+            }
+        }
+        return mapped;
+    }
     public List<ProxyGroupConfig> getProxyGroups() { return proxyGroups; }
     public void setProxyGroups(List<ProxyGroupConfig> proxyGroups) { this.proxyGroups = proxyGroups; }
     public List<RuleGroupRef> getRuleGroups() { return ruleGroups; }
