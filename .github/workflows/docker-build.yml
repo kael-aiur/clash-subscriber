@@ -1,9 +1,9 @@
 name: Build and Push Docker Image
 
+# 仅在合并 PR 到 main（= push main）时构建并推送镜像；
+# push 到 develop 等其他分支不触发，PR 未合并也不触发。
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
