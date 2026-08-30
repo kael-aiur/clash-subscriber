@@ -28,7 +28,7 @@ Clash Subscriber 针对以上痛点提供了解决方案：
 
 ## 项目功能特性
 
-- 多订阅源管理：维护多个 Clash/Mihomo 订阅链接，支持 User-Agent 和自定义请求头，订阅 URL 在界面中默认脱敏展示。
+- 多订阅源管理：支持远程订阅和本地订阅。远程订阅维护 Clash/Mihomo 订阅链接、User-Agent 和自定义请求头；本地订阅可直接粘贴保存完整 Clash 配置，订阅 URL 在界面中默认脱敏展示。
 - 订阅详情解析：查看订阅的代理节点、代理组、规则列表、代理组关系和原始 YAML，并支持输入域名探测最终会使用哪些节点。
 - 节点标签管理：用关键词规则给节点归类，支持优先级、导入和导出。
 - 规则组管理：从订阅提取规则组，或手动维护可复用规则组，并通过代理对象占位符适配不同配置。
@@ -148,7 +148,7 @@ java -Dserver.port=9090 -jar module-web/target/*.jar
 | --- | --- |
 | `data/admin/` | 管理员账号 |
 | `data/subscriptions/` | 订阅源定义 |
-| `data/cache/` | 订阅拉取缓存 |
+| `data/cache/` | 订阅拉取缓存与本地订阅配置 |
 | `data/node-tags/` | 节点标签 |
 | `data/rule-groups/` | 规则组 |
 | `data/config-profiles/` | 配置组合 |
@@ -166,7 +166,12 @@ java -Dserver.port=9090 -jar module-web/target/*.jar
 
 ### 2. 管理订阅源
 
-进入“订阅管理”，点击“添加订阅源”，填写名称、订阅 URL、User-Agent 和自定义 Headers。列表中可以执行获取、查看详情、提取规则组、编辑和删除。
+进入“订阅管理”，点击“添加订阅源”，选择订阅类型：
+
+- **远程订阅**：填写名称、订阅 URL、User-Agent 和自定义 Headers。
+- **本地订阅**：填写名称，并直接粘贴完整的 Clash YAML 配置；保存时会校验并持久化配置内容。
+
+列表中可以执行获取、查看详情、提取规则组、编辑和删除。
 
 ![订阅源管理](assets/readme/screenshots/01-subscriptions.png)
 

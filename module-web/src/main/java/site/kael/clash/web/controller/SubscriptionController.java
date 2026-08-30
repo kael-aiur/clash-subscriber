@@ -12,6 +12,12 @@ import site.kael.clash.subscription.service.SubscriptionService;
 import java.util.List;
 
 /**
+ * 订阅源本地配置内容响应。
+ */
+record SubscriptionContentResponse(String content) {
+}
+
+/**
  * 订阅源管理 REST 控制器
  * <p>
  * 提供订阅源的 CRUD 操作及远程获取功能。
@@ -45,6 +51,16 @@ public class SubscriptionController {
         log.info("创建订阅源: name={}", subscription.getName());
         Subscription created = subscriptionService.create(subscription);
         return ResponseEntity.ok(created);
+    }
+
+    /**
+     * 获取订阅源保存的本地配置内容
+     */
+    @GetMapping("/{id}/content")
+    public ResponseEntity<SubscriptionContentResponse> getContent(@PathVariable String id) {
+        log.debug("获取订阅源本地配置内容: id={}", id);
+        String content = subscriptionService.getSavedContent(id);
+        return ResponseEntity.ok(new SubscriptionContentResponse(content));
     }
 
     /**

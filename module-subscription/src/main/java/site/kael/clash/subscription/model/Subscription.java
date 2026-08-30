@@ -7,7 +7,9 @@ import java.util.Map;
 public class Subscription {
     private String id;
     private String name;
+    private String type = "remote";
     private String url;
+    private String content;
     private String userAgent;
     private Map<String, String> headers = new HashMap<>();
     private LocalDateTime createdAt;
@@ -24,8 +26,12 @@ public class Subscription {
     public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
     public String getUserAgent() { return userAgent; }
     public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
     public Map<String, String> getHeaders() { return headers; }

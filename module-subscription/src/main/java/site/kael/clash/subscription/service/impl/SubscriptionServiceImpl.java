@@ -21,18 +21,20 @@ import site.kael.clash.subscription.service.SubscriptionService;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 订阅源服务实现，提供 CRUD、远程获取、YAML/Base64 解析及本地缓存能力。
+ * 订阅源服务实现，提供 CRUD、远程获取、本地配置、YAML/Base64 解析及本地缓存能力。
  */
 @Service
 public class SubscriptionServiceImpl implements SubscriptionService {
@@ -41,6 +43,14 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     /** 默认 User-Agent，部分订阅服务商据此返回完整 Clash 配置 */
     private static final String DEFAULT_USER_AGENT = "Clash";
+
+    /** 订阅类型 */
+    public static final String TYPE_REMOTE = "remote";
+    public static final String TYPE_LOCAL = "local";
+    private static final Set<String> SUPPORTED_TYPES = Set.of(TYPE_REMOTE, TYPE_LOCAL);
+
+    /** 单个本地订阅允许保存的最大内容大小（1MB） */
+    private static final int MAX_LOCAL_CONTENT_LENGTH = 1024 * 1024;
 
     /** 用于判断内容是否为 YAML 的关键词列表 */
     private static final Pattern YAML_MARKER_PATTERN = Pattern.compile(
@@ -80,7 +90,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         subscription.setId(IdGenerator.generate());
         subscription.setCreatedAt(LocalDateTime.now());
         subscription.setUpdatedAt(LocalDateTime.now());
-        log.info("创建订阅源: id={}, name={}", subscription.getId(), subscription.getName());
+        prepareForSave(subscription, null);
+        log.info("创建订阅源: id={}, name={}, type={}",
+                subscription.getId(), subscription.getName(), subscription.getType());
         return repository.save(subscription);
     }
 
@@ -89,13 +101,12 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (subscription.getId() == null) {
             throw new BusinessException("更新订阅源时 ID 不能为空");
         }
-        Optional<Subscription> existing = repository.findById(subscription.getId());
-        if (existing.isEmpty()) {
-            throw new BusinessException("订阅源不存在: " + subscription.getId());
-        }
+        Subscription existing = repository.findById(subscription.getId())
+                .orElseThrow(() -> new BusinessException("订阅源不存在: " + subscription.getId()));
         subscription.setUpdatedAt(LocalDateTime.now());
         // 保留原始创建时间
-        subscription.setCreatedAt(existing.get().getCreatedAt());
+        subscription.setCreatedAt(existing.getCreatedAt());
+        prepareForSave(subscription, existing);
         log.info("更新订阅源: id={}", subscription.getId());
         return repository.save(subscription);
     }
@@ -125,13 +136,42 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Subscription subscription = repository.findById(subscriptionId)
                 .orElseThrow(() -> new BusinessException("订阅源不存在: " + subscriptionId));
 
+        if (isLocal(subscription)) {
+            return fetchLocal(subscription);
+        }
+        return fetchRemote(subscription);
+    }
+
+    @Override
+    public String getSavedContent(String subscriptionId) {
+        Subscription subscription = repository.findById(subscriptionId)
+                .orElseThrow(() -> new BusinessException("订阅源不存在: " + subscriptionId));
+        if (!isLocal(subscription)) {
+            return "";
+        }
+        return readCacheFile(subscriptionId)
+                .orElseThrow(() -> new BusinessException("本地订阅配置文件不存在，请重新保存订阅源"));
+    }
+
+    private ClashConfig fetchLocal(Subscription subscription) {
+        String content = readCacheFile(subscription.getId())
+                .orElseThrow(() -> new BusinessException("本地订阅配置文件不存在，请重新保存订阅源"));
+        ClashConfig config = parseContent(content);
+        subscription.setLastFetchedAt(LocalDateTime.now());
+        repository.save(subscription);
+        log.info("本地订阅读取成功: subscriptionId={}, proxyCount={}",
+                subscription.getId(), config.getProxies().size());
+        return config;
+    }
+
+    private ClashConfig fetchRemote(Subscription subscription) {
         String responseBody;
         try {
             responseBody = doHttpRequest(subscription);
         } catch (Exception e) {
             log.warn("HTTP 请求失败，尝试从缓存加载: subscriptionId={}, error={}",
-                    subscriptionId, e.getMessage());
-            return loadFromCache(subscriptionId)
+                    subscription.getId(), e.getMessage());
+            return loadFromCache(subscription.getId())
                     .orElseThrow(() -> new BusinessException("HTTP 请求失败且无可用缓存: " + e.getMessage()));
         }
 
@@ -143,11 +183,86 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         repository.save(subscription);
 
         // 写入缓存（保存原始响应，避免解析时字段被移除）
-        saveToCache(subscriptionId, responseBody);
+        saveToCache(subscription.getId(), responseBody);
 
         log.info("订阅获取成功: subscriptionId={}, proxyCount={}",
-                subscriptionId, config.getProxies().size());
+                subscription.getId(), config.getProxies().size());
         return config;
+    }
+
+    // ==================== 本地订阅 ====================
+
+    /**
+     * 校验订阅数据并持久化本地配置。
+     * JSON 模型中的 content 只作为传输字段，实际内容保存到缓存文件。
+     */
+    private void prepareForSave(Subscription subscription, Subscription existing) {
+        if (subscription.getType() == null || subscription.getType().isBlank()) {
+            subscription.setType(TYPE_REMOTE);
+        }
+        if (!SUPPORTED_TYPES.contains(subscription.getType())) {
+            throw new BusinessException("不支持的订阅类型: " + subscription.getType());
+        }
+
+        if (isRemote(subscription)) {
+            if (subscription.getUrl() == null || subscription.getUrl().isBlank()) {
+                throw new BusinessException("远程订阅的 URL 不能为空");
+            }
+            subscription.setContent(null);
+            return;
+        }
+
+        if (subscription.getName() == null || subscription.getName().isBlank()) {
+            throw new BusinessException("订阅源名称不能为空");
+        }
+        subscription.setUrl(null);
+        subscription.setUserAgent(null);
+        if (subscription.getHeaders() != null && !subscription.getHeaders().isEmpty()) {
+            subscription.setHeaders(new java.util.HashMap<>());
+        }
+
+        boolean contentChanged = subscription.getContent() != null;
+        if (contentChanged) {
+            String content = subscription.getContent();
+            if (content.isBlank()) {
+                throw new BusinessException("本地订阅配置内容不能为空");
+            }
+            if (content.length() > MAX_LOCAL_CONTENT_LENGTH) {
+                throw new BusinessException("本地订阅配置内容不能超过 1MB");
+            }
+            // 立即校验，避免保存无法被构建流程使用的配置
+            parseContent(content);
+            saveToCache(subscription.getId(), content);
+        } else if (existing == null) {
+            throw new BusinessException("本地订阅配置内容不能为空");
+        } else {
+            // 更新元数据时不清空既有本地配置；缓存文件丢失时报错，避免生成不可用订阅
+            boolean cacheExists = getCacheFile(subscription.getId()).exists();
+            if (!cacheExists) {
+                throw new BusinessException("本地订阅配置文件不存在，请提交配置内容");
+            }
+        }
+        subscription.setContent(null);
+    }
+
+    private boolean isLocal(Subscription subscription) {
+        return TYPE_LOCAL.equalsIgnoreCase(subscription.getType());
+    }
+
+    private boolean isRemote(Subscription subscription) {
+        return TYPE_REMOTE.equalsIgnoreCase(subscription.getType());
+    }
+
+    private Optional<String> readCacheFile(String subscriptionId) {
+        File cacheFile = getCacheFile(subscriptionId);
+        if (!cacheFile.exists()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Files.readString(cacheFile.toPath(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new BusinessException("读取本地订阅配置失败: " + e.getMessage());
+        }
     }
 
     // ==================== HTTP 请求 ====================
@@ -333,11 +448,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
      */
     void saveToCache(String subscriptionId, String content) {
         File cacheFile = getCacheFile(subscriptionId);
-        try (FileWriter writer = new FileWriter(cacheFile)) {
+        try (FileWriter writer = new FileWriter(cacheFile, StandardCharsets.UTF_8)) {
             writer.write(content);
             log.debug("缓存已写入: {}", cacheFile.getAbsolutePath());
         } catch (IOException e) {
-            log.warn("写入缓存失败: subscriptionId={}, error={}", subscriptionId, e.getMessage());
+            throw new BusinessException("保存本地订阅配置失败: " + e.getMessage());
         }
     }
 
@@ -351,7 +466,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             return Optional.empty();
         }
         try {
-            String content = Files.readString(cacheFile.toPath());
+            String content = Files.readString(cacheFile.toPath(), StandardCharsets.UTF_8);
             ClashConfig config = YamlUtil.parseClashConfig(content);
             log.debug("从缓存加载成功: subscriptionId={}", subscriptionId);
             return Optional.of(config);
