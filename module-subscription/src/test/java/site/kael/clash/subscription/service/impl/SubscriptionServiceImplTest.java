@@ -70,6 +70,8 @@ class SubscriptionServiceImplTest {
         Subscription updated = new Subscription();
         updated.setId("abc123");
         updated.setName("新名称");
+        updated.setType("remote");
+        updated.setUrl("https://example.com/updated");
 
         Subscription result = service.update(updated);
 
@@ -151,6 +153,98 @@ class SubscriptionServiceImplTest {
     void deleteById_noCacheFile_doesNotThrow() {
         assertDoesNotThrow(() -> service.deleteById("no-cache"));
         verify(repository).deleteById("no-cache");
+    }
+
+    // ==================== local subscription ====================
+
+    @Test
+    void create_localSubscription_savesAndValidatesContent() {
+        Subscription input = new Subscription();
+        input.setName("本地订阅");
+        input.setType("local");
+        input.setContent("""
+                proxies:
+                  - name: local-node
+                    type: ss
+                    server: 127.0.0.1
+                    port: 8388
+                """);
+        input.setUrl("https://should-be-ignored.example.com");
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Subscription result = service.create(input);
+
+        assertNotNull(result.getId());
+        assertEquals("local", result.getType());
+        assertNull(result.getUrl());
+        assertNull(result.getContent());
+        assertTrue(Files.exists(tempDir.resolve("cache/" + result.getId() + ".yaml")));
+
+        when(repository.findById(result.getId())).thenReturn(Optional.of(result));
+        ClashConfig config = service.fetch(result.getId());
+        assertEquals(1, config.getProxies().size());
+        assertEquals("local-node", config.getProxies().get(0).getName());
+        assertNotNull(result.getLastFetchedAt());
+    }
+
+    @Test
+    void create_localSubscriptionWithInvalidContent_throwsException() {
+        Subscription input = new Subscription();
+        input.setName("无效本地订阅");
+        input.setType("local");
+        input.setContent("this is not yaml");
+
+        assertThrows(BusinessException.class, () -> service.create(input));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void create_localSubscriptionWithoutContent_throwsException() {
+        Subscription input = new Subscription();
+        input.setName("缺少内容");
+        input.setType("local");
+
+        assertThrows(BusinessException.class, () -> service.create(input));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void update_localSubscription_withoutContent_keepsSavedConfiguration() throws Exception {
+        Subscription existing = new Subscription();
+        existing.setId("local-existing");
+        existing.setName("旧名称");
+        existing.setType("local");
+        when(repository.findById("local-existing")).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Files.createDirectories(tempDir.resolve("cache"));
+        Files.writeString(tempDir.resolve("cache/local-existing.yaml"), "proxies: []");
+
+        Subscription updated = new Subscription();
+        updated.setId("local-existing");
+        updated.setName("新名称");
+        updated.setType("local");
+
+        Subscription result = service.update(updated);
+
+        assertEquals("新名称", result.getName());
+        assertTrue(Files.exists(tempDir.resolve("cache/local-existing.yaml")));
+        verify(repository).save(updated);
+    }
+
+    @Test
+    void fetch_remoteSubscription_remainsHttpBased() throws Exception {
+        Subscription sub = new Subscription();
+        sub.setId("remote-existing");
+        sub.setName("远程订阅");
+        sub.setType("remote");
+        sub.setUrl("https://example.com/sub");
+        when(repository.findById("remote-existing")).thenReturn(Optional.of(sub));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doReturn("proxies: []").when(service).doHttpRequest(any());
+
+        assertDoesNotThrow(() -> service.fetch("remote-existing"));
+        verify(service, never()).getSavedContent("remote-existing");
     }
 
     // ==================== fetch ====================

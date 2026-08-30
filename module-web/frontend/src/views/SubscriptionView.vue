@@ -3,7 +3,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { subscriptionApi } from '@/api/subscription'
-import type { Subscription, ClashConfig, ProxyNode, ProxyGroup } from '@/api/subscription'
+import type { Subscription, SubscriptionType, ClashConfig, ProxyNode, ProxyGroup } from '@/api/subscription'
 import { nodeTagApi } from '@/api/nodeTag'
 import type { NodeTag } from '@/api/nodeTag'
 import { ruleGroupApi } from '@/api/ruleGroup'
@@ -94,10 +94,17 @@ const regionGroups = computed<RegionGroup[]>(() => {
 
 const form = ref<Partial<Subscription>>({
   name: '',
+  type: 'remote',
   url: '',
+  content: '',
   userAgent: '',
   headers: {},
 })
+
+const subscriptionTypeOptions: Array<{ label: string; value: SubscriptionType }> = [
+  { label: '远程订阅', value: 'remote' },
+  { label: '本地订阅', value: 'local' },
+]
 
 const headerPairs = ref<Array<{ key: string; value: string }>>([])
 
@@ -113,16 +120,25 @@ const loadSubscriptions = async () => {
   }
 }
 
-const openDialog = (sub?: Subscription) => {
+const openDialog = async (sub?: Subscription) => {
   if (sub) {
     dialogTitle.value = '编辑订阅源'
     editingId.value = sub.id
-    form.value = { ...sub }
+    form.value = { ...sub, content: '' }
     headerPairs.value = Object.entries(sub.headers || {}).map(([key, value]) => ({ key, value }))
+    if (sub.type === 'local') {
+      try {
+        const res = await subscriptionApi.getContent(sub.id)
+        form.value.content = res.data.content
+      } catch {
+        ElMessage.warning('读取本地配置失败，请重新粘贴配置')
+        form.value.content = ''
+      }
+    }
   } else {
     dialogTitle.value = '添加订阅源'
     editingId.value = null
-    form.value = { name: '', url: '', userAgent: '', headers: {} }
+    form.value = { name: '', type: 'remote', url: '', content: '', userAgent: '', headers: {} }
     headerPairs.value = []
   }
   dialogVisible.value = true
@@ -137,8 +153,16 @@ const removeHeader = (index: number) => {
 }
 
 const handleSubmit = async () => {
-  if (!form.value.name || !form.value.url) {
-    ElMessage.warning('请填写名称和 URL')
+  if (!form.value.name?.trim()) {
+    ElMessage.warning('请填写订阅源名称')
+    return
+  }
+  if (form.value.type === 'remote' && !form.value.url?.trim()) {
+    ElMessage.warning('请填写订阅链接')
+    return
+  }
+  if (form.value.type === 'local' && !form.value.content?.trim()) {
+    ElMessage.warning('请输入 Clash 配置内容')
     return
   }
 
@@ -149,14 +173,23 @@ const handleSubmit = async () => {
       headers[pair.key] = pair.value
     }
   }
-  form.value.headers = headers
+
+  const payload: Partial<Subscription> = {
+    id: editingId.value || undefined,
+    name: form.value.name.trim(),
+    type: form.value.type,
+    content: form.value.type === 'local' ? form.value.content : undefined,
+    url: form.value.type === 'remote' ? form.value.url?.trim() : undefined,
+    userAgent: form.value.type === 'remote' ? form.value.userAgent : undefined,
+    headers: form.value.type === 'remote' ? headers : {},
+  }
 
   try {
     if (editingId.value) {
-      await subscriptionApi.update(editingId.value, form.value)
+      await subscriptionApi.update(editingId.value, payload)
       ElMessage.success('更新成功')
     } else {
-      await subscriptionApi.create(form.value)
+      await subscriptionApi.create(payload)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
@@ -604,9 +637,17 @@ onMounted(() => {
 
     <el-table :data="subscriptions" v-loading="loading" border stripe>
       <el-table-column prop="name" label="名称" min-width="150" />
-      <el-table-column label="URL" min-width="300">
+      <el-table-column label="类型" width="100">
         <template #default="{ row }">
-          <MaskableText :text="row.url" />
+          <el-tag :type="row.type === 'local' ? 'warning' : 'primary'">
+            {{ row.type === 'local' ? '本地' : '远程' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="来源" min-width="280">
+        <template #default="{ row }">
+          <span v-if="row.type === 'local'" class="local-source">本地 Clash 配置</span>
+          <MaskableText v-else :text="row.url" />
         </template>
       </el-table-column>
       <el-table-column label="最后获取时间" width="180">
@@ -631,24 +672,51 @@ onMounted(() => {
     <!-- 添加/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="600px">
       <el-form label-width="100px">
+        <el-form-item label="订阅类型" required>
+          <el-radio-group v-model="form.type">
+            <el-radio-button
+              v-for="option in subscriptionTypeOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="输入订阅源名称" />
         </el-form-item>
-        <el-form-item label="URL" required>
-          <el-input v-model="form.url" placeholder="输入订阅链接" />
-        </el-form-item>
-        <el-form-item label="User-Agent">
-          <el-input v-model="form.userAgent" placeholder="自定义 User-Agent（可选）" />
-        </el-form-item>
-        <el-form-item label="自定义 Headers">
-          <div style="width: 100%">
-            <div v-for="(pair, index) in headerPairs" :key="index" style="display: flex; gap: 8px; margin-bottom: 8px;">
-              <el-input v-model="pair.key" placeholder="Header 名称" style="flex: 1" />
-              <el-input v-model="pair.value" placeholder="Header 值" style="flex: 1" />
-              <el-button type="danger" :icon="'Delete'" circle @click="removeHeader(index)" />
+
+        <template v-if="form.type === 'remote'">
+          <el-form-item label="URL" required>
+            <el-input v-model="form.url" placeholder="输入订阅链接" />
+          </el-form-item>
+          <el-form-item label="User-Agent">
+            <el-input v-model="form.userAgent" placeholder="自定义 User-Agent（可选）" />
+          </el-form-item>
+          <el-form-item label="自定义 Headers">
+            <div style="width: 100%">
+              <div v-for="(pair, index) in headerPairs" :key="index" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <el-input v-model="pair.key" placeholder="Header 名称" style="flex: 1" />
+                <el-input v-model="pair.value" placeholder="Header 值" style="flex: 1" />
+                <el-button type="danger" :icon="'Delete'" circle @click="removeHeader(index)" />
+              </div>
+              <el-button size="small" @click="addHeader">添加 Header</el-button>
             </div>
-            <el-button size="small" @click="addHeader">添加 Header</el-button>
-          </div>
+          </el-form-item>
+        </template>
+
+        <el-form-item v-else label="配置内容" required>
+          <el-input
+            v-model="form.content"
+            type="textarea"
+            :rows="16"
+            :autosize="{ minRows: 12, maxRows: 28 }"
+            placeholder="粘贴完整的 Clash YAML 配置..."
+            spellcheck="false"
+            class="subscription-yaml-input"
+          />
+          <div class="config-hint">支持完整 Clash YAML 配置；保存时会校验内容格式。</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -680,10 +748,11 @@ onMounted(() => {
           <el-tab-pane label="基本信息" name="basic">
             <el-descriptions :column="1" border>
               <el-descriptions-item label="配置名称">{{ detailData?.name || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="订阅 URL">{{ detailSub?.url || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="User-Agent">{{ detailSub?.userAgent || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="订阅类型">{{ detailSub?.type === 'local' ? '本地订阅' : '远程订阅' }}</el-descriptions-item>
+              <el-descriptions-item label="订阅来源">{{ detailSub?.type === 'local' ? '保存的 Clash 配置' : (detailSub?.url || '-') }}</el-descriptions-item>
+              <el-descriptions-item label="User-Agent">{{ detailSub?.type === 'local' ? '-' : (detailSub?.userAgent || '-') }}</el-descriptions-item>
               <el-descriptions-item label="最后获取时间">{{ formatDate(detailSub?.lastFetchedAt) }}</el-descriptions-item>
-              <el-descriptions-item label="自定义 Headers">
+              <el-descriptions-item v-if="detailSub?.type !== 'local'" label="自定义 Headers">
                 <template v-if="detailSub?.headers && Object.keys(detailSub.headers).length">
                   <el-tag v-for="(value, key) in detailSub.headers" :key="key" style="margin: 2px;">{{ key }}: {{ value }}</el-tag>
                 </template>
@@ -985,6 +1054,24 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.local-source {
+  color: #909399;
+}
+
+.subscription-yaml-input :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.config-hint {
+  width: 100%;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+}
+
 .relation-container {
   display: flex;
   gap: 16px;

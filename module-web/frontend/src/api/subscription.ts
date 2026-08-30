@@ -1,14 +1,22 @@
 import api from './index'
 
+export type SubscriptionType = 'remote' | 'local'
+
 export interface Subscription {
   id: string
   name: string
-  url: string
+  type: SubscriptionType
+  url?: string
+  content?: string
   userAgent?: string
   headers?: Record<string, string>
   createdAt?: string
   updatedAt?: string
   lastFetchedAt?: string
+}
+
+export interface SubscriptionContentResponse {
+  content: string
 }
 
 export interface ProxyNode {
@@ -55,6 +63,10 @@ export const subscriptionApi = {
 
   delete(id: string) {
     return api.delete(`/subscriptions/${id}`)
+  },
+
+  getContent(id: string) {
+    return api.get<SubscriptionContentResponse>(`/subscriptions/${id}/content`)
   },
 
   fetch(id: string) {

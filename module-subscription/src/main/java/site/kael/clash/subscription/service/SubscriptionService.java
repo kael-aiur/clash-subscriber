@@ -52,4 +52,12 @@ public interface SubscriptionService {
      * @return 解析后的 ClashConfig
      */
     ClashConfig fetch(String subscriptionId);
+
+    /**
+     * 读取本地订阅保存的原始 Clash 配置内容。
+     *
+     * @param subscriptionId 订阅源 ID
+     * @return 保存的 YAML/Base64 原始内容；远程订阅返回空
+     */
+    String getSavedContent(String subscriptionId);
 }
