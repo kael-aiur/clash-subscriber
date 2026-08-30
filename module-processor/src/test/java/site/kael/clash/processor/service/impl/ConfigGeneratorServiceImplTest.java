@@ -52,6 +52,9 @@ class ConfigGeneratorServiceImplTest {
 
             @Override
             public void deleteById(String id) { throw new UnsupportedOperationException(); }
+
+            @Override
+            public String getSavedContent(String subscriptionId) { return ""; }
         };
     }
 
